@@ -72,6 +72,7 @@ class BannedWordManagerTest {
                         true,
                         false,
                         "GeoLite2-Country.mmdb",
+                        "https://github.com/P3TERX/GeoLite.mmdb/releases/latest/download/GeoLite2-Country.mmdb",
                         List.of(),
                         List.of(),
                         List.of(),

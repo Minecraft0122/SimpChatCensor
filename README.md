@@ -19,15 +19,15 @@ SimpChatCensor 是一个面向 Paper 1.21.4+ / Folia 26.1.2+ 的聊天与命令�
 mvn clean package
 ```
 
-构建产物位于 `target/SimpChatCensor-1.2-beta.jar`。
+构建产物位于 `target/SimpChatCensor-1.3-beta.jar`。
 
 ## 自动发布
 
 推送 `v*` 标签会触发 GitHub Actions 自动构建并创建 GitHub Release。
 
 ```powershell
-git tag -a v1.2-beta -m "SimpChatCensor 1.2-beta"
-git push origin v1.2-beta
+git tag -a v1.3-beta -m "SimpChatCensor 1.3-beta"
+git push origin v1.3-beta
 ```
 
 标签中包含 `alpha`、`beta` 或 `rc` 时，Release 会自动标记为预发布。
@@ -40,10 +40,13 @@ git push origin v1.2-beta
 /bwf remove <词/IP/域名>
 /bwf list
 /bwf geoip reload
+/bwf geoip update
 /bwf whitelist add <IP/域名>
 ```
 
 `/bwf` 管理命令会自动绕过内容扫描，因此可以正常添加包含 IP 或域名的白名单/违禁词条。
+
+`/bwf geoip update` 默认从 [P3TERX/GeoLite.mmdb](https://github.com/P3TERX/GeoLite.mmdb) 下载 `GeoLite2-Country.mmdb`，保存到插件数据目录并自动重载。GeoLite2 数据库由 MaxMind 提供，请遵守其许可要求。
 
 ## 作者
 

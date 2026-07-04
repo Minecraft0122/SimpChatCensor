@@ -1,7 +1,9 @@
 package com.simpchatcensor.command;
 
 import com.simpchatcensor.SimpChatCensorPlugin;
+import com.simpchatcensor.detection.GeoIpDatabaseUpdater;
 import com.simpchatcensor.util.ColorUtil;
+import com.simpchatcensor.util.SchedulerUtil;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -9,12 +11,16 @@ import org.bukkit.command.TabCompleter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 public final class BwfCommand implements CommandExecutor, TabCompleter {
     private final SimpChatCensorPlugin plugin;
+    private final AtomicBoolean geoIpUpdateRunning = new AtomicBoolean();
 
     public BwfCommand(SimpChatCensorPlugin plugin) {
         this.plugin = plugin;
@@ -111,12 +117,45 @@ public final class BwfCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        plugin.reloadPlugin();
         if (args[1].equalsIgnoreCase("update")) {
-            send(sender, "&eGeoIP 在线更新需要 MaxMind 授权密钥；请替换数据库文件后已为你执行重载。");
-        } else {
-            send(sender, "&aGeoIP 数据库已重新加载。");
+            return updateGeoIp(sender);
         }
+
+        plugin.reloadPlugin();
+        send(sender, "&aGeoIP 数据库已重新加载。");
+        return true;
+    }
+
+    private boolean updateGeoIp(CommandSender sender) {
+        if (!geoIpUpdateRunning.compareAndSet(false, true)) {
+            send(sender, "&eGeoIP 数据库正在更新，请稍后再试。");
+            return true;
+        }
+
+        send(sender, "&e正在下载 GeoIP 数据库，完成后会自动重载。");
+        CompletableFuture
+                .supplyAsync(() -> {
+                    try {
+                        return GeoIpDatabaseUpdater.download(plugin.configManager().getConfig());
+                    } catch (Exception exception) {
+                        throw new GeoIpUpdateException(exception);
+                    }
+                })
+                .whenComplete((result, throwable) -> SchedulerUtil.runGlobal(plugin, () -> {
+                    geoIpUpdateRunning.set(false);
+                    if (throwable != null) {
+                        Throwable cause = unwrapGeoIpUpdateError(throwable);
+                        send(sender, "&cGeoIP 数据库更新失败: &f" + cause.getMessage());
+                        return;
+                    }
+
+                    plugin.reloadPlugin();
+                    send(sender, "&aGeoIP 数据库已更新并重新加载: &f"
+                            + result.database().getFileName()
+                            + " &7("
+                            + formatBytes(result.bytes())
+                            + ")");
+                }));
         return true;
     }
 
@@ -157,6 +196,7 @@ public final class BwfCommand implements CommandExecutor, TabCompleter {
         send(sender, "&7/" + label + " remove <词> &f- 删除违禁词");
         send(sender, "&7/" + label + " list &f- 显示词库");
         send(sender, "&7/" + label + " geoip reload &f- 重载 GeoIP 数据库");
+        send(sender, "&7/" + label + " geoip update &f- 下载并重载 GeoIP 数据库");
         send(sender, "&7/" + label + " whitelist add <IP/域名> &f- 添加白名单");
     }
 
@@ -180,5 +220,27 @@ public final class BwfCommand implements CommandExecutor, TabCompleter {
             }
         }
         return output;
+    }
+
+    private static String formatBytes(long bytes) {
+        if (bytes < 1024L * 1024L) {
+            return bytes / 1024L + " KiB";
+        }
+        return "%.1f MiB".formatted(bytes / 1024.0 / 1024.0);
+    }
+
+    private static Throwable unwrapGeoIpUpdateError(Throwable throwable) {
+        Throwable current = throwable;
+        while ((current instanceof CompletionException || current instanceof GeoIpUpdateException)
+                && current.getCause() != null) {
+            current = current.getCause();
+        }
+        return current;
+    }
+
+    private static final class GeoIpUpdateException extends RuntimeException {
+        private GeoIpUpdateException(Throwable cause) {
+            super(cause);
+        }
     }
 }

@@ -51,6 +51,10 @@ public final class ConfigManager {
                         source.getBoolean("ip-domain-detection.block-private-ips", true),
                         source.getBoolean("ip-domain-detection.geoip-enabled", false),
                         source.getString("ip-domain-detection.geoip-database", "GeoLite2-Country.mmdb"),
+                        source.getString(
+                                "ip-domain-detection.geoip-download-url",
+                                "https://github.com/P3TERX/GeoLite.mmdb/releases/latest/download/GeoLite2-Country.mmdb"
+                        ),
                         cleanList(source.getStringList("ip-domain-detection.blocked-countries")),
                         cleanList(source.getStringList("ip-domain-detection.allowed-countries")),
                         cleanList(source.getStringList("ip-domain-detection.cidr-blacklist")),

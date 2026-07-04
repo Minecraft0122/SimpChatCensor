@@ -33,6 +33,7 @@ public record PluginConfig(
             boolean blockPrivateIps,
             boolean geoIpEnabled,
             String geoIpDatabase,
+            String geoIpDownloadUrl,
             List<String> blockedCountries,
             List<String> allowedCountries,
             List<String> cidrBlacklist,

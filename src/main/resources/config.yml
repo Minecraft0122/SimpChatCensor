@@ -72,6 +72,9 @@ ip-domain-detection:
   geoip-enabled: false
   # GeoIP 数据库文件名，路径相对于 plugins/SimpChatCensor/。
   geoip-database: "GeoLite2-Country.mmdb"
+  # /bwf geoip update 使用的下载地址。
+  # 默认使用 P3TERX/GeoLite.mmdb 的 latest GeoLite2-Country.mmdb。
+  geoip-download-url: "https://github.com/P3TERX/GeoLite.mmdb/releases/latest/download/GeoLite2-Country.mmdb"
   # GeoIP 国家黑名单；可写中文名、英文名或 ISO 代码，取决于数据库返回值。
   blocked-countries: ["朝鲜", "伊朗"]
   # GeoIP 国家白名单；非空时只允许这些国家/地区，优先级高于黑名单。
