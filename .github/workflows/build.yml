@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -39,3 +39,34 @@ jobs:
           name: SimpChatCensor
           path: target/SimpChatCensor-*.jar
           if-no-files-found: error
+
+  release:
+    name: Publish GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Download plugin jar
+        uses: actions/download-artifact@v8
+        with:
+          name: SimpChatCensor
+          path: dist
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          release_args=(
+            --repo "$GITHUB_REPOSITORY"
+            --title "SimpChatCensor ${TAG_NAME#v}"
+            --notes "Automated release for ${TAG_NAME}."
+            --verify-tag
+          )
+
+          if [[ "$TAG_NAME" =~ (alpha|beta|rc) ]]; then
+            release_args+=(--prerelease)
+          fi
+
+          gh release create "$TAG_NAME" dist/*.jar "${release_args[@]}"
