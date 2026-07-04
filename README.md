@@ -8,7 +8,7 @@ SimpChatCensor 是一个面向 Paper 1.21.4+ / Folia 26.1.2+ 的聊天与命令�
 - Unicode 规范化、变音剥离、Leet 还原、空白移除
 - 拼音模糊匹配
 - 编辑距离模糊匹配
-- IPv4、IPv6、域名、CIDR 与私网 IP 检测
+- IPv4、IPv4 混淆分隔符、IPv6、域名、CIDR 与私网 IP 检测
 - 可选 GeoIP 国家/地区拦截
 - 支持 `cancel`、`filter`、`warn`、`kick` 处理动作
 - Folia 调度兼容

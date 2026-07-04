@@ -13,9 +13,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public final class IpDomainDetector {
-    private static final String IPV4_CORE = "(?:(?:25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]?\\d)\\.){3}"
-            + "(?:25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]?\\d)";
-    private static final Pattern IPV4_PATTERN = Pattern.compile("(?<![\\d.])(" + IPV4_CORE + ")(?![\\d.])");
+    private static final String IPV4_OCTET = "(?:25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]?\\d)";
+    private static final String IPV4_SEPARATOR_CHARS = ".,，。．｡﹒､、";
+    private static final String IPV4_SEPARATOR = "\\s*[" + IPV4_SEPARATOR_CHARS + "]\\s*";
+    private static final Pattern IPV4_PATTERN = Pattern.compile(
+            "(" + IPV4_OCTET + "(?:" + IPV4_SEPARATOR + IPV4_OCTET + "){3})"
+    );
     private static final Pattern IPV6_PATTERN = Pattern.compile(
             "(?i)(?<![0-9a-f:])((?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4})(?![0-9a-f:])"
     );
@@ -43,29 +46,34 @@ public final class IpDomainDetector {
         if (config.checkIpv4() && mightContainIpv4(message)) {
             Matcher matcher = IPV4_PATTERN.matcher(message);
             while (matcher.find()) {
-                String ip = matcher.group(1);
+                if (isEmbeddedIpv4Candidate(message, matcher.start(1), matcher.end(1))) {
+                    continue;
+                }
+
+                String detectedText = matcher.group(1);
+                String ip = normalizeIpv4Candidate(detectedText);
                 if (isWhitelistedIp(ip)) {
                     continue;
                 }
-                Optional<DetectionResult> cidrResult = detectCidr(ip, action);
+                Optional<DetectionResult> cidrResult = detectCidr(ip, detectedText, action);
                 if (cidrResult.isPresent()) {
                     return cidrResult;
                 }
                 if (config.blockPrivateIps() && isPrivateIpv4(ip)) {
                     return Optional.of(DetectionResult.of(
                             DetectionType.IP_ADDRESS,
-                            ip,
+                            detectedText,
                             "private-ip",
                             action,
-                            "private IPv4 address"
+                            ip.equals(detectedText) ? "private IPv4 address" : "obfuscated private IPv4 address"
                     ));
                 }
                 return Optional.of(DetectionResult.of(
                         DetectionType.IP_ADDRESS,
+                        detectedText,
                         ip,
-                        "ipv4",
                         action,
-                        "IPv4 address"
+                        ip.equals(detectedText) ? "IPv4 address" : "obfuscated IPv4 address"
                 ));
             }
         }
@@ -118,7 +126,7 @@ public final class IpDomainDetector {
             return Optional.empty();
         }
 
-        Optional<DetectionResult> cidrResult = detectCidr(ip, config.action());
+        Optional<DetectionResult> cidrResult = detectCidr(ip, ip, config.action());
         if (cidrResult.isPresent()) {
             return cidrResult;
         }
@@ -151,7 +159,7 @@ public final class IpDomainDetector {
         return Optional.empty();
     }
 
-    private Optional<DetectionResult> detectCidr(String ip, DetectionAction action) {
+    private Optional<DetectionResult> detectCidr(String ip, String detectedText, DetectionAction action) {
         if (ip.indexOf(':') >= 0) {
             return Optional.empty();
         }
@@ -160,7 +168,7 @@ public final class IpDomainDetector {
             if (subnet.getInfo().isInRange(ip)) {
                 return Optional.of(DetectionResult.of(
                         DetectionType.CIDR,
-                        ip,
+                        detectedText,
                         subnet.getInfo().getCidrSignature(),
                         action,
                         "CIDR blacklist"
@@ -206,16 +214,65 @@ public final class IpDomainDetector {
 
     private static boolean mightContainIpv4(String message) {
         boolean hasDigit = false;
-        boolean hasDot = false;
+        boolean hasSeparator = false;
         for (int i = 0; i < message.length(); i++) {
             char c = message.charAt(i);
             hasDigit |= Character.isDigit(c);
-            hasDot |= c == '.';
-            if (hasDigit && hasDot) {
+            hasSeparator |= isIpv4Separator(c);
+            if (hasDigit && hasSeparator) {
                 return true;
             }
         }
         return false;
+    }
+
+    private static String normalizeIpv4Candidate(String candidate) {
+        return String.join(".", candidate.trim().split(IPV4_SEPARATOR));
+    }
+
+    private static boolean isEmbeddedIpv4Candidate(String message, int start, int end) {
+        return touchesLetterOrDigit(message, start, end)
+                || hasIpv4ContinuationBefore(message, start)
+                || hasIpv4ContinuationAfter(message, end);
+    }
+
+    private static boolean touchesLetterOrDigit(String message, int start, int end) {
+        return (start > 0 && Character.isLetterOrDigit(message.charAt(start - 1)))
+                || (end < message.length() && Character.isLetterOrDigit(message.charAt(end)));
+    }
+
+    private static boolean hasIpv4ContinuationBefore(String message, int start) {
+        int index = start - 1;
+        while (index >= 0 && Character.isWhitespace(message.charAt(index))) {
+            index--;
+        }
+        if (index < 0 || !isIpv4Separator(message.charAt(index))) {
+            return false;
+        }
+        index--;
+        while (index >= 0 && Character.isWhitespace(message.charAt(index))) {
+            index--;
+        }
+        return index >= 0 && Character.isDigit(message.charAt(index));
+    }
+
+    private static boolean hasIpv4ContinuationAfter(String message, int end) {
+        int index = end;
+        while (index < message.length() && Character.isWhitespace(message.charAt(index))) {
+            index++;
+        }
+        if (index >= message.length() || !isIpv4Separator(message.charAt(index))) {
+            return false;
+        }
+        index++;
+        while (index < message.length() && Character.isWhitespace(message.charAt(index))) {
+            index++;
+        }
+        return index < message.length() && Character.isDigit(message.charAt(index));
+    }
+
+    private static boolean isIpv4Separator(char c) {
+        return IPV4_SEPARATOR_CHARS.indexOf(c) >= 0;
     }
 
     private static boolean isPrivateIpv4(String ip) {

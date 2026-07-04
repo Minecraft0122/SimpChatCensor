@@ -59,6 +59,7 @@ ip-domain-detection:
   # 是否启用 IP/域名检测。
   enabled: true
   # 是否检测 IPv4 地址，例如 192.168.1.1。
+  # 同时会识别逗号、中文逗号、中文句号等混淆分隔符，例如 1,1,1,1。
   check-ipv4: true
   # 是否检测完整 IPv6 地址；默认关闭以降低误报。
   check-ipv6: false
