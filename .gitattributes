@@ -1,0 +1,8 @@
+* text=auto
+.gitattributes text eol=lf
+.gitignore text eol=lf
+*.java text eol=lf
+*.yml text eol=lf working-tree-encoding=UTF-8
+*.yaml text eol=lf working-tree-encoding=UTF-8
+*.md text eol=lf working-tree-encoding=UTF-8
+*.xml text eol=lf working-tree-encoding=UTF-8

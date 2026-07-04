@@ -1,0 +1,93 @@
+# SimpChatCensor 配置文件
+# 支持的处理动作:
+#   cancel = 拦截消息/命令
+#   filter = 替换命中的内容后继续发送
+#   warn   = 只警告玩家，不拦截
+#   kick   = 踢出玩家
+
+# 默认违规处理动作。
+action: cancel
+
+# 是否把 banned-words 中的条目当作正则表达式。
+# false 时使用普通字符串包含匹配，性能更稳。
+use-regex: false
+
+# 是否启用高级预处理。
+# 可识别 Unicode 兼容字符、变音符号、Leet 写法和空白拆分，例如 f u c k。
+advanced-preprocess: true
+
+# 是否检测玩家执行的命令内容。
+filter-commands: true
+
+# 是否把违规记录通知给拥有 simpchatcensor.notify 权限的管理员。
+notify-staff: true
+
+# 是否写入 plugins/SimpChatCensor/violations.log。
+log-to-file: true
+
+# 管理员通知消息。
+# 可用变量: %player%, %type%, %match%, %rule%, %detail%
+staff-message: "&c[SimpChatCensor] &f%player% &7触发 &e%type%&7: &f%match%"
+
+# 玩家被拦截或警告时收到的提示。
+player-warning: "&c请不要发送违规内容。"
+
+# action 为 kick，或登录 IP/GeoIP 被拦截时使用的踢出消息。
+kick-message: "&c你因发送违规内容被移出服务器。"
+
+# 拼音模糊匹配。
+# 开启后可让“卧槽”和“窝操”这类同音变体互相命中；中文服有用，但会增加误报风险。
+fuzzy-pinyin:
+  # 是否启用拼音匹配。
+  enabled: false
+  # 多音字组合上限，越高越准但越耗时。
+  max-combinations: 32
+
+# 编辑距离模糊匹配。
+# 用来识别少量拼写变体，例如 fuck -> fack。
+fuzzy-levenshtein:
+  # 是否启用编辑距离匹配。
+  enabled: false
+  # 全局最大编辑距离；建议保持 1，避免误伤正常单词。
+  global-threshold: 1
+  # 单条消息最多计算次数，防止超长消息造成性能压力。
+  max-checks-per-message: 50
+
+# IP/域名检测。
+# 主要用于拦截广告、外部服务器地址、内网地址泄露。
+ip-domain-detection:
+  # 是否启用 IP/域名检测。
+  enabled: true
+  # 是否检测 IPv4 地址，例如 192.168.1.1。
+  check-ipv4: true
+  # 是否检测完整 IPv6 地址；默认关闭以降低误报。
+  check-ipv6: false
+  # 是否检测域名、子域名、端口和路径，例如 mc.example.com:25565。
+  check-domains: true
+  # 是否拦截内网/本机/链路本地地址，例如 10.x.x.x、127.0.0.1、192.168.x.x。
+  block-private-ips: true
+  # 是否启用 GeoIP 国家/地区检测。
+  # 需要把 GeoLite2-Country.mmdb 放到插件数据目录后再开启。
+  geoip-enabled: false
+  # GeoIP 数据库文件名，路径相对于 plugins/SimpChatCensor/。
+  geoip-database: "GeoLite2-Country.mmdb"
+  # GeoIP 国家黑名单；可写中文名、英文名或 ISO 代码，取决于数据库返回值。
+  blocked-countries: ["朝鲜", "伊朗"]
+  # GeoIP 国家白名单；非空时只允许这些国家/地区，优先级高于黑名单。
+  allowed-countries: []
+  # CIDR 网段黑名单，只支持 IPv4，例如 1.2.3.0/24。
+  cidr-blacklist: ["1.2.3.0/24"]
+  # IP 白名单；命中后跳过 IP/CIDR 检测。
+  ip-whitelist: []
+  # 域名白名单；允许精确域名及其子域名，例如 minecraft.net 会允许 auth.minecraft.net。
+  domain-whitelist: ["minecraft.net"]
+  # IP/域名违规时的处理动作；未配置时使用顶部 action。
+  action: cancel
+
+# 违禁词列表。
+# use-regex 为 false 时是普通关键词；为 true 时每一项都会作为正则表达式编译。
+# IP 和域名也可以直接写在这里，用于精确黑名单。
+banned-words:
+  - "fuck"
+  - "混蛋"
+  - "192.168.1.1"
