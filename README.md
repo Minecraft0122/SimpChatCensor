@@ -6,10 +6,10 @@ SimpChatCensor 是一个面向 Paper 1.21.4+ / Folia 26.1.2+ 的聊天与命令�
 
 - 普通关键词与正则匹配
 - Unicode 规范化、变音剥离、Leet 还原、空白移除
-- 拼音模糊匹配
+- 拼音模糊匹配，覆盖“你妈/你嘛/你吗”这类同音变体
 - 编辑距离模糊匹配
 - IPv4、IPv4 混淆分隔符、IPv6、域名、CIDR 与私网 IP 检测
-- 可选 GeoIP 国家/地区拦截
+- 可选 GeoIP 国家/地区登录来源拦截
 - 支持 `cancel`、`filter`、`warn`、`kick` 处理动作
 - Folia 调度兼容
 
@@ -19,15 +19,15 @@ SimpChatCensor 是一个面向 Paper 1.21.4+ / Folia 26.1.2+ 的聊天与命令�
 mvn clean package
 ```
 
-构建产物位于 `target/SimpChatCensor-1.3-beta.jar`。
+构建产物位于 `target/SimpChatCensor-1.4-beta.jar`。
 
 ## 自动发布
 
 推送 `v*` 标签会触发 GitHub Actions 自动构建并创建 GitHub Release。
 
 ```powershell
-git tag -a v1.3-beta -m "SimpChatCensor 1.3-beta"
-git push origin v1.3-beta
+git tag -a v1.4-beta -m "SimpChatCensor 1.4-beta"
+git push origin v1.4-beta
 ```
 
 标签中包含 `alpha`、`beta` 或 `rc` 时，Release 会自动标记为预发布。
@@ -47,6 +47,10 @@ git push origin v1.3-beta
 `/bwf` 管理命令会自动绕过内容扫描，因此可以正常添加包含 IP 或域名的白名单/违禁词条。
 
 `/bwf geoip update` 默认从 [P3TERX/GeoLite.mmdb](https://github.com/P3TERX/GeoLite.mmdb) 下载 `GeoLite2-Country.mmdb`，保存到插件数据目录并自动重载。GeoLite2 数据库由 MaxMind 提供，请遵守其许可要求。
+
+GeoIP 只用于玩家登录 IP 的国家/地区限制。它适合遭遇特定地区攻击、或需要国家白名单/黑名单的服务器；如果你只是要拦截聊天里的 IP/域名广告，可以保持 `geoip-enabled: false`。
+
+拼音模糊匹配默认开启。旧版本已经生成过配置文件的服务器，需要确认 `fuzzy-pinyin.enabled` 是 `true`。
 
 ## 作者
 

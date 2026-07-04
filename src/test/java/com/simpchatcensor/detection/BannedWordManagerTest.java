@@ -38,11 +38,13 @@ class BannedWordManagerTest {
                 true,
                 true,
                 false,
-                List.of("卧槽"),
+                List.of("卧槽", "你妈"),
                 tempDir
         ));
 
         assertEquals(DetectionType.FUZZY_PINYIN, manager.scan("窝操").orElseThrow().type());
+        assertEquals(DetectionType.FUZZY_PINYIN, manager.scan("你嘛").orElseThrow().type());
+        assertEquals(DetectionType.FUZZY_PINYIN, manager.scan("你吗").orElseThrow().type());
     }
 
     private static PluginConfig config(

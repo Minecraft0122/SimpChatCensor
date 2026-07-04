@@ -35,7 +35,7 @@ public final class ConfigManager {
                 source.getString("player-warning", "&c请不要发送违规内容。"),
                 source.getString("kick-message", "&c你因发送违规内容被移出服务器。"),
                 new PluginConfig.PinyinConfig(
-                        source.getBoolean("fuzzy-pinyin.enabled", false),
+                        source.getBoolean("fuzzy-pinyin.enabled", true),
                         positive(source.getInt("fuzzy-pinyin.max-combinations", 32), 32)
                 ),
                 new PluginConfig.LevenshteinConfig(

@@ -36,10 +36,11 @@ player-warning: "&c请不要发送违规内容。"
 kick-message: "&c你因发送违规内容被移出服务器。"
 
 # 拼音模糊匹配。
-# 开启后可让“卧槽”和“窝操”这类同音变体互相命中；中文服有用，但会增加误报风险。
+# 开启后可让“你妈”和“你嘛/你吗”、“卧槽”和“窝操”这类同音变体互相命中。
+# 中文服通常建议开启；如果误报偏多，可以再改为 false。
 fuzzy-pinyin:
   # 是否启用拼音匹配。
-  enabled: false
+  enabled: true
   # 多音字组合上限，越高越准但越耗时。
   max-combinations: 32
 
@@ -68,7 +69,8 @@ ip-domain-detection:
   # 是否拦截内网/本机/链路本地地址，例如 10.x.x.x、127.0.0.1、192.168.x.x。
   block-private-ips: true
   # 是否启用 GeoIP 国家/地区检测。
-  # 需要把 GeoLite2-Country.mmdb 放到插件数据目录后再开启。
+  # 这个功能只用于“玩家登录 IP 的国家/地区限制”，不是聊天内容过滤的核心。
+  # 通常只有服务器遭遇特定地区攻击，或明确需要来源地白名单/黑名单时才建议开启。
   geoip-enabled: false
   # GeoIP 数据库文件名，路径相对于 plugins/SimpChatCensor/。
   geoip-database: "GeoLite2-Country.mmdb"
