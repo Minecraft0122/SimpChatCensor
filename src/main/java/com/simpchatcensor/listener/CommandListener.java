@@ -35,12 +35,16 @@ public final class CommandListener implements Listener {
             return;
         }
 
+        String command = event.getMessage();
+        if (isManagementCommand(command)) {
+            return;
+        }
+
         Player player = event.getPlayer();
         if (player.hasPermission("simpchatcensor.bypass")) {
             return;
         }
 
-        String command = event.getMessage();
         Optional<DetectionResult> result = bannedWordManager.scan(command);
         result.ifPresent(detectionResult -> actionExecutor.applyTextAction(
                 player,
@@ -56,5 +60,33 @@ public final class CommandListener implements Listener {
                 () -> event.setCancelled(true),
                 true
         ));
+    }
+
+    public static boolean isManagementCommand(String command) {
+        if (command == null) {
+            return false;
+        }
+
+        String trimmed = command.trim();
+        if (!trimmed.startsWith("/")) {
+            return false;
+        }
+
+        String root = firstToken(trimmed.substring(1));
+        int namespaceSeparator = root.indexOf(':');
+        if (namespaceSeparator >= 0 && namespaceSeparator + 1 < root.length()) {
+            root = root.substring(namespaceSeparator + 1);
+        }
+
+        return root.equalsIgnoreCase("bwf");
+    }
+
+    private static String firstToken(String value) {
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.isWhitespace(value.charAt(i))) {
+                return value.substring(0, i);
+            }
+        }
+        return value;
     }
 }
