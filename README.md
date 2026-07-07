@@ -51,9 +51,3 @@ git push origin v1.4-beta
 GeoIP 只用于玩家登录 IP 的国家/地区限制。它适合遭遇特定地区攻击、或需要国家白名单/黑名单的服务器；如果你只是要拦截聊天里的 IP/域名广告，可以保持 `geoip-enabled: false`。
 
 拼音模糊匹配默认开启。旧版本已经生成过配置文件的服务器，需要确认 `fuzzy-pinyin.enabled` 是 `true`。
-
-## 作者
-
-主作者：GPT-5.5
-
-全部作者：Minecraft0122, SimpFun, GPT-5.5
