@@ -11,15 +11,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class IpDomainDetectorTest {
     @Test
-    void detectsIpv4AndCidrBeforeGenericIp() {
+    void blocksEveryIpv4ByDefault() {
         IpDomainDetector detector = detector(
-                List.of("45.67.89.0/24"),
                 List.of(),
                 List.of()
         );
 
         assertEquals(
-                DetectionType.CIDR,
+                DetectionType.IP_ADDRESS,
                 detector.detectInMessage("join 45.67.89.123").orElseThrow().type()
         );
     }
@@ -27,7 +26,6 @@ class IpDomainDetectorTest {
     @Test
     void detectsCommaSeparatedIpv4Bypass() {
         IpDomainDetector detector = detector(
-                List.of(),
                 List.of(),
                 List.of()
         );
@@ -39,22 +37,20 @@ class IpDomainDetectorTest {
     }
 
     @Test
-    void detectsObfuscatedIpv4AndStillAppliesCidr() {
+    void detectsObfuscatedIpv4() {
         IpDomainDetector detector = detector(
-                List.of("45.67.89.0/24"),
                 List.of(),
                 List.of()
         );
 
         DetectionResult result = detector.detectInMessage("join 45，67，89，123").orElseThrow();
-        assertEquals(DetectionType.CIDR, result.type());
+        assertEquals(DetectionType.IP_ADDRESS, result.type());
         assertEquals("45，67，89，123", result.detectedText());
     }
 
     @Test
     void ignoresPartialFiveOctetIpv4Candidates() {
         IpDomainDetector detector = detector(
-                List.of(),
                 List.of(),
                 List.of()
         );
@@ -65,7 +61,6 @@ class IpDomainDetectorTest {
     @Test
     void respectsWhitelistForObfuscatedIpv4() {
         IpDomainDetector detector = detector(
-                List.of(),
                 List.of("1.1.1.1"),
                 List.of()
         );
@@ -74,9 +69,35 @@ class IpDomainDetectorTest {
     }
 
     @Test
+    void respectsIpv4CidrWhitelist() {
+        IpDomainDetector detector = detector(
+                List.of("45.67.89.0/24"),
+                List.of()
+        );
+
+        assertTrue(detector.detectInMessage("join 45.67.89.123").isEmpty());
+        assertEquals(
+                DetectionType.IP_ADDRESS,
+                detector.detectInMessage("join 45.67.90.123").orElseThrow().type()
+        );
+    }
+
+    @Test
+    void blocksIpv6ByDefaultAndRespectsExactWhitelist() {
+        String ipv6 = "2001:0db8:85a3:0000:0000:8a2e:0370:7334";
+        IpDomainDetector blockedDetector = detector(List.of(), List.of());
+        IpDomainDetector allowedDetector = detector(List.of(ipv6), List.of());
+
+        assertEquals(
+                DetectionType.IP_ADDRESS,
+                blockedDetector.detectInMessage("join " + ipv6).orElseThrow().type()
+        );
+        assertTrue(allowedDetector.detectInMessage("join " + ipv6).isEmpty());
+    }
+
+    @Test
     void allowsWhitelistedDomain() {
         IpDomainDetector detector = detector(
-                List.of(),
                 List.of(),
                 List.of("minecraft.net")
         );
@@ -88,12 +109,11 @@ class IpDomainDetectorTest {
         );
     }
 
-    private static IpDomainDetector detector(List<String> cidrs, List<String> ipWhitelist, List<String> domainWhitelist) {
+    private static IpDomainDetector detector(List<String> ipWhitelist, List<String> domainWhitelist) {
         return new IpDomainDetector(
                 new PluginConfig.IpDomainConfig(
                         true,
                         true,
-                        false,
                         true,
                         true,
                         false,
@@ -101,7 +121,6 @@ class IpDomainDetectorTest {
                         "https://github.com/P3TERX/GeoLite.mmdb/releases/latest/download/GeoLite2-Country.mmdb",
                         List.of(),
                         List.of(),
-                        cidrs,
                         ipWhitelist,
                         domainWhitelist,
                         DetectionAction.CANCEL

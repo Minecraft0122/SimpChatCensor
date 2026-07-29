@@ -8,7 +8,7 @@
 # 默认违规处理动作。
 action: cancel
 
-# 是否把 banned-words 中的条目当作正则表达式。
+# 是否把 message-blacklist.yml 中的条目当作正则表达式。
 # false 时使用普通字符串包含匹配，性能更稳。
 use-regex: false
 
@@ -62,12 +62,10 @@ ip-domain-detection:
   # 是否检测 IPv4 地址，例如 192.168.1.1。
   # 同时会识别逗号、中文逗号、中文句号等混淆分隔符，例如 1,1,1,1。
   check-ipv4: true
-  # 是否检测完整 IPv6 地址；默认关闭以降低误报。
-  check-ipv6: false
+  # 是否检测完整 IPv6 地址；默认开启，白名单中的地址除外。
+  check-ipv6: true
   # 是否检测域名、子域名、端口和路径，例如 mc.example.com:25565。
   check-domains: true
-  # 是否拦截内网/本机/链路本地地址，例如 10.x.x.x、127.0.0.1、192.168.x.x。
-  block-private-ips: true
   # 是否启用 GeoIP 国家/地区检测。
   # 这个功能只用于“玩家登录 IP 的国家/地区限制”，不是聊天内容过滤的核心。
   # 通常只有服务器遭遇特定地区攻击，或明确需要来源地白名单/黑名单时才建议开启。
@@ -81,19 +79,7 @@ ip-domain-detection:
   blocked-countries: ["朝鲜", "伊朗"]
   # GeoIP 国家白名单；非空时只允许这些国家/地区，优先级高于黑名单。
   allowed-countries: []
-  # CIDR 网段黑名单，只支持 IPv4，例如 1.2.3.0/24。
-  cidr-blacklist: ["1.2.3.0/24"]
-  # IP 白名单；命中后跳过 IP/CIDR 检测。
-  ip-whitelist: []
   # 域名白名单；允许精确域名及其子域名，例如 minecraft.net 会允许 auth.minecraft.net。
   domain-whitelist: ["minecraft.net"]
   # IP/域名违规时的处理动作；未配置时使用顶部 action。
   action: cancel
-
-# 违禁词列表。
-# use-regex 为 false 时是普通关键词；为 true 时每一项都会作为正则表达式编译。
-# IP 和域名也可以直接写在这里，用于精确黑名单。
-banned-words:
-  - "fuck"
-  - "混蛋"
-  - "192.168.1.1"

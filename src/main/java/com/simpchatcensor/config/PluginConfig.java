@@ -30,13 +30,11 @@ public record PluginConfig(
             boolean checkIpv4,
             boolean checkIpv6,
             boolean checkDomains,
-            boolean blockPrivateIps,
             boolean geoIpEnabled,
             String geoIpDatabase,
             String geoIpDownloadUrl,
             List<String> blockedCountries,
             List<String> allowedCountries,
-            List<String> cidrBlacklist,
             List<String> ipWhitelist,
             List<String> domainWhitelist,
             DetectionAction action

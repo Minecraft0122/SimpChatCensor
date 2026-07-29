@@ -1,0 +1,5 @@
+# 消息黑名单。
+# use-regex 为 false 时是普通关键词；为 true 时每一项都会作为正则表达式编译。
+banned-words:
+  - "fuck"
+  - "混蛋"

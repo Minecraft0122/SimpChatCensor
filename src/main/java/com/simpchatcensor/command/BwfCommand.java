@@ -48,7 +48,7 @@ public final class BwfCommand implements CommandExecutor, TabCompleter {
             case "add" -> {
                 String word = joinTail(args, 1);
                 if (word.isBlank()) {
-                    send(sender, "&c用法: /" + label + " add <词/IP/域名>");
+                    send(sender, "&c用法: /" + label + " add <词/正则>");
                     return true;
                 }
                 if (plugin.configManager().addBannedWord(word)) {
@@ -62,7 +62,7 @@ public final class BwfCommand implements CommandExecutor, TabCompleter {
             case "remove" -> {
                 String word = joinTail(args, 1);
                 if (word.isBlank()) {
-                    send(sender, "&c用法: /" + label + " remove <词/IP/域名>");
+                    send(sender, "&c用法: /" + label + " remove <词/正则>");
                     return true;
                 }
                 if (plugin.configManager().removeBannedWord(word)) {
@@ -192,7 +192,7 @@ public final class BwfCommand implements CommandExecutor, TabCompleter {
     private void sendHelp(CommandSender sender, String label) {
         send(sender, "&eSimpChatCensor 命令:");
         send(sender, "&7/" + label + " reload &f- 重载配置");
-        send(sender, "&7/" + label + " add <词> &f- 添加违禁词/IP/域名");
+        send(sender, "&7/" + label + " add <词/正则> &f- 添加消息黑名单条目");
         send(sender, "&7/" + label + " remove <词> &f- 删除违禁词");
         send(sender, "&7/" + label + " list &f- 显示词库");
         send(sender, "&7/" + label + " geoip reload &f- 重载 GeoIP 数据库");

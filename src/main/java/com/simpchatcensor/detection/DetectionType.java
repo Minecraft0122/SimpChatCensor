@@ -5,7 +5,6 @@ public enum DetectionType {
     REGEX("regex"),
     IP_ADDRESS("ip-address"),
     DOMAIN("domain"),
-    CIDR("cidr"),
     GEOIP_COUNTRY("geoip-country"),
     FUZZY_PINYIN("fuzzy-pinyin"),
     FUZZY_LEVENSHTEIN("fuzzy-levenshtein");

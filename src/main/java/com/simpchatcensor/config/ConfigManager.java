@@ -1,14 +1,24 @@
 package com.simpchatcensor.config;
 
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 public final class ConfigManager {
+    private static final String MESSAGE_BLACKLIST_FILE = "message-blacklist.yml";
+    private static final String IP_WHITELIST_FILE = "ip-whitelist.yml";
+    private static final String BANNED_WORDS_PATH = "banned-words";
+    private static final String IP_WHITELIST_PATH = "ip-whitelist";
+
     private final JavaPlugin plugin;
     private PluginConfig config;
+    private YamlConfiguration messageBlacklist;
+    private YamlConfiguration ipWhitelist;
 
     public ConfigManager(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -17,6 +27,11 @@ public final class ConfigManager {
     public void reload() {
         plugin.reloadConfig();
         FileConfiguration source = plugin.getConfig();
+        boolean messageBlacklistExisted = dataFile(MESSAGE_BLACKLIST_FILE).isFile();
+        boolean ipWhitelistExisted = dataFile(IP_WHITELIST_FILE).isFile();
+        this.messageBlacklist = loadDataFile(MESSAGE_BLACKLIST_FILE);
+        this.ipWhitelist = loadDataFile(IP_WHITELIST_FILE);
+        migrateLegacyLists(source, messageBlacklistExisted, ipWhitelistExisted);
 
         DetectionAction defaultAction = DetectionAction.fromString(source.getString("action"), DetectionAction.CANCEL);
         DetectionAction ipAction = DetectionAction.fromString(
@@ -46,9 +61,8 @@ public final class ConfigManager {
                 new PluginConfig.IpDomainConfig(
                         source.getBoolean("ip-domain-detection.enabled", true),
                         source.getBoolean("ip-domain-detection.check-ipv4", true),
-                        source.getBoolean("ip-domain-detection.check-ipv6", false),
+                        source.getBoolean("ip-domain-detection.check-ipv6", true),
                         source.getBoolean("ip-domain-detection.check-domains", true),
-                        source.getBoolean("ip-domain-detection.block-private-ips", true),
                         source.getBoolean("ip-domain-detection.geoip-enabled", false),
                         source.getString("ip-domain-detection.geoip-database", "GeoLite2-Country.mmdb"),
                         source.getString(
@@ -57,12 +71,11 @@ public final class ConfigManager {
                         ),
                         cleanList(source.getStringList("ip-domain-detection.blocked-countries")),
                         cleanList(source.getStringList("ip-domain-detection.allowed-countries")),
-                        cleanList(source.getStringList("ip-domain-detection.cidr-blacklist")),
-                        cleanList(source.getStringList("ip-domain-detection.ip-whitelist")),
+                        cleanList(ipWhitelist.getStringList(IP_WHITELIST_PATH)),
                         cleanList(source.getStringList("ip-domain-detection.domain-whitelist")),
                         ipAction
                 ),
-                cleanList(source.getStringList("banned-words")),
+                cleanList(messageBlacklist.getStringList(BANNED_WORDS_PATH)),
                 plugin.getDataFolder().toPath()
         );
     }
@@ -80,26 +93,30 @@ public final class ConfigManager {
             return false;
         }
 
-        List<String> words = new ArrayList<>(plugin.getConfig().getStringList("banned-words"));
+        List<String> words = new ArrayList<>(messageBlacklist.getStringList(BANNED_WORDS_PATH));
         if (containsIgnoreCase(words, cleaned)) {
             return false;
         }
         words.add(cleaned);
-        plugin.getConfig().set("banned-words", words);
-        plugin.saveConfig();
+        messageBlacklist.set(BANNED_WORDS_PATH, words);
+        if (!saveDataFile(messageBlacklist, MESSAGE_BLACKLIST_FILE)) {
+            return false;
+        }
         reload();
         return true;
     }
 
     public boolean removeBannedWord(String word) {
         String cleaned = cleanValue(word);
-        List<String> words = new ArrayList<>(plugin.getConfig().getStringList("banned-words"));
+        List<String> words = new ArrayList<>(messageBlacklist.getStringList(BANNED_WORDS_PATH));
         boolean removed = words.removeIf(existing -> existing.equalsIgnoreCase(cleaned));
         if (!removed) {
             return false;
         }
-        plugin.getConfig().set("banned-words", words);
-        plugin.saveConfig();
+        messageBlacklist.set(BANNED_WORDS_PATH, words);
+        if (!saveDataFile(messageBlacklist, MESSAGE_BLACKLIST_FILE)) {
+            return false;
+        }
         reload();
         return true;
     }
@@ -110,18 +127,124 @@ public final class ConfigManager {
             return false;
         }
 
-        String path = cleaned.matches("^[0-9a-fA-F:.]+$") || cleaned.contains("/")
-                ? "ip-domain-detection.ip-whitelist"
-                : "ip-domain-detection.domain-whitelist";
-        List<String> values = new ArrayList<>(plugin.getConfig().getStringList(path));
+        boolean isIp = isIpEntry(cleaned);
+        FileConfiguration target = isIp ? ipWhitelist : plugin.getConfig();
+        String path = isIp ? IP_WHITELIST_PATH : "ip-domain-detection.domain-whitelist";
+        List<String> values = new ArrayList<>(target.getStringList(path));
         if (containsIgnoreCase(values, cleaned)) {
             return false;
         }
         values.add(cleaned);
-        plugin.getConfig().set(path, values);
-        plugin.saveConfig();
+        target.set(path, values);
+        if (isIp) {
+            if (!saveDataFile(ipWhitelist, IP_WHITELIST_FILE)) {
+                return false;
+            }
+        } else {
+            plugin.saveConfig();
+        }
         reload();
         return true;
+    }
+
+    private YamlConfiguration loadDataFile(String fileName) {
+        File file = dataFile(fileName);
+        if (!file.isFile()) {
+            plugin.saveResource(fileName, false);
+        }
+        return YamlConfiguration.loadConfiguration(file);
+    }
+
+    private File dataFile(String fileName) {
+        return new File(plugin.getDataFolder(), fileName);
+    }
+
+    private void migrateLegacyLists(
+            FileConfiguration source,
+            boolean messageBlacklistExisted,
+            boolean ipWhitelistExisted
+    ) {
+        boolean changedMainConfig = false;
+
+        if (source.contains(BANNED_WORDS_PATH)) {
+            migrateList(
+                    messageBlacklist,
+                    BANNED_WORDS_PATH,
+                    source.getStringList(BANNED_WORDS_PATH),
+                    messageBlacklistExisted
+            );
+            if (saveDataFile(messageBlacklist, MESSAGE_BLACKLIST_FILE)) {
+                source.set(BANNED_WORDS_PATH, null);
+                changedMainConfig = true;
+            }
+        }
+
+        String legacyWhitelistPath = "ip-domain-detection.ip-whitelist";
+        if (source.contains(legacyWhitelistPath)) {
+            migrateList(
+                    ipWhitelist,
+                    IP_WHITELIST_PATH,
+                    source.getStringList(legacyWhitelistPath),
+                    ipWhitelistExisted
+            );
+            if (saveDataFile(ipWhitelist, IP_WHITELIST_FILE)) {
+                source.set(legacyWhitelistPath, null);
+                changedMainConfig = true;
+            }
+        }
+
+        String legacyBlacklistPath = "ip-domain-detection.cidr-blacklist";
+        if (source.contains(legacyBlacklistPath)) {
+            source.set(legacyBlacklistPath, null);
+            changedMainConfig = true;
+        }
+
+        if (source.contains("ip-domain-detection.block-private-ips")) {
+            source.set("ip-domain-detection.block-private-ips", null);
+            changedMainConfig = true;
+        }
+
+        if (changedMainConfig) {
+            plugin.saveConfig();
+        }
+    }
+
+    private static void migrateList(
+            FileConfiguration target,
+            String path,
+            List<String> legacyValues,
+            boolean targetExisted
+    ) {
+        if (!targetExisted) {
+            target.set(path, cleanList(legacyValues));
+            return;
+        }
+        mergeList(target, path, legacyValues);
+    }
+
+    private static void mergeList(FileConfiguration target, String path, List<String> legacyValues) {
+        List<String> merged = new ArrayList<>(target.getStringList(path));
+        for (String legacyValue : legacyValues) {
+            String cleaned = cleanValue(legacyValue);
+            if (!cleaned.isEmpty() && !containsIgnoreCase(merged, cleaned)) {
+                merged.add(cleaned);
+            }
+        }
+        target.set(path, merged);
+    }
+
+    private boolean saveDataFile(YamlConfiguration source, String fileName) {
+        try {
+            source.save(dataFile(fileName));
+            return true;
+        } catch (IOException exception) {
+            plugin.getLogger().severe("Failed to save " + fileName + ": " + exception.getMessage());
+            return false;
+        }
+    }
+
+    private static boolean isIpEntry(String value) {
+        return value.matches("^[0-9a-fA-F:.]+(?:/\\d{1,3})?$");
     }
 
     private static int positive(int value, int fallback) {

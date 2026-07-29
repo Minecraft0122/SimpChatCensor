@@ -29,12 +29,12 @@ public final class IpDomainDetector {
 
     private final PluginConfig.IpDomainConfig config;
     private final GeoIpService geoIpService;
-    private final List<SubnetUtils> cidrBlacklist;
+    private final List<SubnetUtils> cidrWhitelist;
 
     public IpDomainDetector(PluginConfig.IpDomainConfig config, GeoIpService geoIpService) {
         this.config = config;
         this.geoIpService = geoIpService;
-        this.cidrBlacklist = compileCidrs(config.cidrBlacklist());
+        this.cidrWhitelist = compileCidrs(config.ipWhitelist());
     }
 
     public Optional<DetectionResult> detectInMessage(String message) {
@@ -54,19 +54,6 @@ public final class IpDomainDetector {
                 String ip = normalizeIpv4Candidate(detectedText);
                 if (isWhitelistedIp(ip)) {
                     continue;
-                }
-                Optional<DetectionResult> cidrResult = detectCidr(ip, detectedText, action);
-                if (cidrResult.isPresent()) {
-                    return cidrResult;
-                }
-                if (config.blockPrivateIps() && isPrivateIpv4(ip)) {
-                    return Optional.of(DetectionResult.of(
-                            DetectionType.IP_ADDRESS,
-                            detectedText,
-                            "private-ip",
-                            action,
-                            ip.equals(detectedText) ? "private IPv4 address" : "obfuscated private IPv4 address"
-                    ));
                 }
                 return Optional.of(DetectionResult.of(
                         DetectionType.IP_ADDRESS,
@@ -126,11 +113,6 @@ public final class IpDomainDetector {
             return Optional.empty();
         }
 
-        Optional<DetectionResult> cidrResult = detectCidr(ip, ip, config.action());
-        if (cidrResult.isPresent()) {
-            return cidrResult;
-        }
-
         if (config.geoIpEnabled()) {
             Optional<GeoIpService.CountryMatch> country = geoIpService.lookup(address);
             if (country.isPresent()) {
@@ -159,29 +141,17 @@ public final class IpDomainDetector {
         return Optional.empty();
     }
 
-    private Optional<DetectionResult> detectCidr(String ip, String detectedText, DetectionAction action) {
-        if (ip.indexOf(':') >= 0) {
-            return Optional.empty();
-        }
-
-        for (SubnetUtils subnet : cidrBlacklist) {
-            if (subnet.getInfo().isInRange(ip)) {
-                return Optional.of(DetectionResult.of(
-                        DetectionType.CIDR,
-                        detectedText,
-                        subnet.getInfo().getCidrSignature(),
-                        action,
-                        "CIDR blacklist"
-                ));
-            }
-        }
-        return Optional.empty();
-    }
-
     private boolean isWhitelistedIp(String ip) {
         for (String allowed : config.ipWhitelist()) {
             if (allowed.equalsIgnoreCase(ip)) {
                 return true;
+            }
+        }
+        if (ip.indexOf(':') < 0) {
+            for (SubnetUtils subnet : cidrWhitelist) {
+                if (subnet.getInfo().isInRange(ip)) {
+                    return true;
+                }
             }
         }
         return false;
@@ -273,22 +243,6 @@ public final class IpDomainDetector {
 
     private static boolean isIpv4Separator(char c) {
         return IPV4_SEPARATOR_CHARS.indexOf(c) >= 0;
-    }
-
-    private static boolean isPrivateIpv4(String ip) {
-        String[] parts = ip.split("\\.");
-        if (parts.length != 4) {
-            return false;
-        }
-        int first = Integer.parseInt(parts[0]);
-        int second = Integer.parseInt(parts[1]);
-        return first == 10
-                || first == 127
-                || (first == 172 && second >= 16 && second <= 31)
-                || (first == 192 && second == 168)
-                || (first == 169 && second == 254)
-                || (first == 100 && second >= 64 && second <= 127)
-                || first == 0;
     }
 
     private static String trimTrailingPunctuation(String value) {
