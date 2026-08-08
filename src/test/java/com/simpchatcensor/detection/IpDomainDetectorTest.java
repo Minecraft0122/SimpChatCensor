@@ -37,6 +37,19 @@ class IpDomainDetectorTest {
     }
 
     @Test
+    void detectsCommaSeparatedDomainBypass() {
+        IpDomainDetector detector = detector(
+                List.of(),
+                List.of()
+        );
+
+        DetectionResult result = detector.detectInMessage("join cnpvp,top").orElseThrow();
+        assertEquals(DetectionType.DOMAIN, result.type());
+        assertEquals("cnpvp,top", result.detectedText());
+        assertEquals("cnpvp.top", result.rule());
+    }
+
+    @Test
     void detectsObfuscatedIpv4() {
         IpDomainDetector detector = detector(
                 List.of(),

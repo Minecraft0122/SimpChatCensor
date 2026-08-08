@@ -65,6 +65,7 @@ ip-domain-detection:
   # 是否检测完整 IPv6 地址；默认开启，白名单中的地址除外。
   check-ipv6: true
   # 是否检测域名、子域名、端口和路径，例如 mc.example.com:25565。
+  # 同时会识别逗号、中文标点等混淆分隔符，例如 cnpvp,top。
   check-domains: true
   # 是否启用 GeoIP 国家/地区检测。
   # 这个功能只用于“玩家登录 IP 的国家/地区限制”，不是聊天内容过滤的核心。

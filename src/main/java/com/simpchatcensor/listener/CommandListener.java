@@ -78,7 +78,9 @@ public final class CommandListener implements Listener {
             root = root.substring(namespaceSeparator + 1);
         }
 
-        return root.equalsIgnoreCase("bwf");
+        return root.equalsIgnoreCase("bwf")
+                || root.equalsIgnoreCase("lp")
+                || root.equalsIgnoreCase("luckperms");
     }
 
     private static String firstToken(String value) {

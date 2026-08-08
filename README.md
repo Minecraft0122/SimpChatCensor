@@ -8,7 +8,7 @@ SimpChatCensor 是一个面向 Paper 1.21.4+ / Folia 26.1.2+ 的聊天与命令�
 - Unicode 规范化、变音剥离、Leet 还原、空白移除
 - 拼音模糊匹配，覆盖“你妈/你嘛/你吗”这类同音变体
 - 编辑距离模糊匹配
-- IPv4、IPv4 混淆分隔符、IPv6 与域名检测
+- IPv4、IPv6、域名及 IP/域名混淆分隔符检测
 - IP 默认拦截，仅允许 `ip-whitelist.yml` 中的精确 IP 或 IPv4 CIDR 网段
 - 可选 GeoIP 国家/地区登录来源拦截
 - 支持 `cancel`、`filter`、`warn`、`kick` 处理动作
@@ -46,6 +46,7 @@ git push origin v1.5-beta
 ```
 
 `/bwf` 管理命令会自动绕过内容扫描，因此可以正常添加白名单与消息黑名单条目。
+`/lp`、`/luckperms`（含命名空间形式）同样会绕过扫描，避免把权限节点误识别为域名。
 
 ## 配置文件
 

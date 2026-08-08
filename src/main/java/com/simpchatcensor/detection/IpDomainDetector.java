@@ -16,6 +16,8 @@ public final class IpDomainDetector {
     private static final String IPV4_OCTET = "(?:25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]?\\d)";
     private static final String IPV4_SEPARATOR_CHARS = ".,，。．｡﹒､、";
     private static final String IPV4_SEPARATOR = "\\s*[" + IPV4_SEPARATOR_CHARS + "]\\s*";
+    private static final String DOMAIN_SEPARATOR_CHARS = ".,，。．｡﹒､、";
+    private static final String DOMAIN_SEPARATOR = "[" + DOMAIN_SEPARATOR_CHARS + "]";
     private static final Pattern IPV4_PATTERN = Pattern.compile(
             "(" + IPV4_OCTET + "(?:" + IPV4_SEPARATOR + IPV4_OCTET + "){3})"
     );
@@ -23,7 +25,7 @@ public final class IpDomainDetector {
             "(?i)(?<![0-9a-f:])((?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4})(?![0-9a-f:])"
     );
     private static final Pattern DOMAIN_PATTERN = Pattern.compile(
-            "(?i)(?<![a-z0-9_-])((?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+"
+            "(?i)(?<![a-z0-9_-])((?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?" + DOMAIN_SEPARATOR + ")+"
                     + "[a-z]{2,63}(?::[0-9]{1,5})?(?:/\\S*)?)(?![a-z0-9_-])"
     );
 
@@ -82,11 +84,11 @@ public final class IpDomainDetector {
             }
         }
 
-        if (config.checkDomains() && message.indexOf('.') >= 0) {
+        if (config.checkDomains() && mightContainDomainSeparator(message)) {
             Matcher matcher = DOMAIN_PATTERN.matcher(message);
             while (matcher.find()) {
                 String domain = trimTrailingPunctuation(matcher.group(1));
-                String host = hostOnly(domain);
+                String host = hostOnly(normalizeDomainCandidate(domain));
                 if (isWhitelistedDomain(host)) {
                     continue;
                 }
@@ -196,6 +198,15 @@ public final class IpDomainDetector {
         return false;
     }
 
+    private static boolean mightContainDomainSeparator(String message) {
+        for (int i = 0; i < message.length(); i++) {
+            if (DOMAIN_SEPARATOR_CHARS.indexOf(message.charAt(i)) >= 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static String normalizeIpv4Candidate(String candidate) {
         return String.join(".", candidate.trim().split(IPV4_SEPARATOR));
     }
@@ -243,6 +254,24 @@ public final class IpDomainDetector {
 
     private static boolean isIpv4Separator(char c) {
         return IPV4_SEPARATOR_CHARS.indexOf(c) >= 0;
+    }
+
+    private static String normalizeDomainCandidate(String candidate) {
+        int authorityEnd = candidate.indexOf('/');
+        if (authorityEnd < 0) {
+            authorityEnd = candidate.length();
+        }
+
+        StringBuilder normalized = new StringBuilder(candidate.length());
+        for (int i = 0; i < candidate.length(); i++) {
+            char current = candidate.charAt(i);
+            if (i < authorityEnd && DOMAIN_SEPARATOR_CHARS.indexOf(current) >= 0) {
+                normalized.append('.');
+            } else {
+                normalized.append(current);
+            }
+        }
+        return normalized.toString();
     }
 
     private static String trimTrailingPunctuation(String value) {
