@@ -4,24 +4,35 @@ on:
   push:
     branches:
       - main
-    tags:
-      - "v*"
   pull_request:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      release_version:
+        description: "仅用于恢复发布；留空时只构建"
+        required: false
+        type: string
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
     name: Build and test plugin
     runs-on: ubuntu-latest
+    outputs:
+      artifact_name: ${{ steps.metadata.outputs.artifact_name }}
+      jar_name: ${{ steps.metadata.outputs.jar_name }}
+      release_requested: ${{ steps.metadata.outputs.release_requested }}
+      tag_name: ${{ steps.metadata.outputs.tag_name }}
+      version: ${{ steps.metadata.outputs.version }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 21
         uses: actions/setup-java@v5
@@ -30,43 +41,419 @@ jobs:
           java-version: "21"
           cache: maven
 
-      - name: Build
-        run: mvn -B clean package
-
-      - name: Upload plugin jar
-        uses: actions/upload-artifact@v7
-        with:
-          name: SimpChatCensor
-          path: target/SimpChatCensor-*.jar
-          if-no-files-found: error
-
-  release:
-    name: Publish GitHub release
-    needs: build
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-
-    steps:
-      - name: Download plugin jar
-        uses: actions/download-artifact@v8
-        with:
-          name: SimpChatCensor
-          path: dist
-
-      - name: Publish release
+      - name: Validate release metadata
+        id: metadata
+        shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
-          TAG_NAME: ${{ github.ref_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_REF: ${{ github.ref }}
+          MANUAL_RELEASE_VERSION: ${{ inputs.release_version }}
         run: |
-          release_args=(
-            --repo "$GITHUB_REPOSITORY"
-            --title "SimpChatCensor ${TAG_NAME#v}"
-            --notes "Automated release for ${TAG_NAME}."
-            --verify-tag
+          python3 - <<'PY'
+          import os
+          import pathlib
+          import re
+          import subprocess
+          import xml.etree.ElementTree as ET
+
+          namespace = {"m": "http://maven.apache.org/POM/4.0.0"}
+
+          def pom_version(content):
+              root = ET.fromstring(content)
+              version = root.find("m:version", namespace)
+              if version is None or not version.text:
+                  raise SystemExit("pom.xml does not define a project version")
+              return version.text.strip()
+
+          current_version = pom_version(pathlib.Path("pom.xml").read_bytes())
+          plugin_text = pathlib.Path("src/main/resources/plugin.yml").read_text(encoding="utf-8")
+          plugin_match = re.search(r"(?m)^version:\s*['\"]?([^'\"\s]+)['\"]?\s*$", plugin_text)
+          if plugin_match is None:
+              raise SystemExit("plugin.yml does not define a version")
+          plugin_version = plugin_match.group(1)
+
+          version_pattern = re.compile(
+              r"^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
+              r"(?:-(?:alpha|beta|rc)(?:\.(?:0|[1-9][0-9]*))?)?$"
+          )
+          compatible_version_pattern = re.compile(
+              r"^(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
+              r"(?:\.(?:0|[1-9][0-9]*))?"
+              r"(?:-(?:alpha|beta|rc)(?:\.(?:0|[1-9][0-9]*))?)?$"
           )
 
-          if [[ "$TAG_NAME" =~ (alpha|beta|rc) ]]; then
-            release_args+=(--prerelease)
+          def version_key(value, allow_legacy=False):
+              pattern = compatible_version_pattern if allow_legacy else version_pattern
+              match = pattern.fullmatch(value)
+              if match is None:
+                  raise SystemExit(f"invalid version in release history: {value}")
+
+              core, separator, prerelease = value.partition("-")
+              core_parts = [int(part) for part in core.split(".")]
+              if len(core_parts) == 2:
+                  core_parts.append(0)
+
+              if not separator:
+                  prerelease_key = (3, -1)
+              else:
+                  stage, dot, sequence = prerelease.partition(".")
+                  stage_order = {"alpha": 0, "beta": 1, "rc": 2}
+                  prerelease_key = (stage_order[stage], int(sequence) if dot else -1)
+
+              return (*core_parts, *prerelease_key)
+
+          if version_pattern.fullmatch(current_version) is None:
+              raise SystemExit(f"invalid release version: {current_version}")
+          if plugin_version != current_version:
+              raise SystemExit(
+                  f"version mismatch: pom.xml={current_version}, plugin.yml={plugin_version}"
+              )
+
+          event_name = os.environ.get("EVENT_NAME", "")
+          manual_version = os.environ.get("MANUAL_RELEASE_VERSION", "").strip()
+          release_requested = False
+
+          if event_name == "push":
+              before_sha = os.environ.get("BEFORE_SHA", "")
+              if before_sha and set(before_sha) != {"0"}:
+                  previous_pom = subprocess.check_output(
+                      ["git", "show", f"{before_sha}:pom.xml"]
+                  )
+                  previous_version = pom_version(previous_pom)
+                  release_requested = previous_version != current_version
+                  if release_requested and version_key(current_version) <= version_key(
+                      previous_version, allow_legacy=True
+                  ):
+                      raise SystemExit(
+                          f"version must increase: {previous_version} -> {current_version}"
+                      )
+          elif event_name == "workflow_dispatch" and manual_version:
+              if os.environ.get("EVENT_REF") != "refs/heads/main":
+                  raise SystemExit("manual releases must run from the main branch")
+              if manual_version != current_version:
+                  raise SystemExit(
+                      f"requested release {manual_version} does not match {current_version}"
+                  )
+              release_requested = True
+
+          if release_requested:
+              current_key = version_key(current_version)
+              for tag in subprocess.check_output(
+                  ["git", "tag", "--list", "v*"], text=True
+              ).splitlines():
+                  tagged_version = tag.removeprefix("v")
+                  tagged_key = version_key(tagged_version, allow_legacy=True)
+                  if tagged_key > current_key:
+                      raise SystemExit(
+                          f"version {current_version} is older than existing tag {tag}"
+                      )
+
+          output = pathlib.Path(os.environ["GITHUB_OUTPUT"])
+          with output.open("a", encoding="utf-8") as stream:
+              stream.write(f"version={current_version}\n")
+              stream.write(f"tag_name=v{current_version}\n")
+              stream.write(f"jar_name=SimpChatCensor-{current_version}.jar\n")
+              stream.write(f"artifact_name=SimpChatCensor-{current_version}\n")
+              stream.write(f"release_requested={str(release_requested).lower()}\n")
+
+          print(f"version={current_version}")
+          print(f"release_requested={str(release_requested).lower()}")
+          PY
+
+      - name: Build
+        run: mvn -B -ntp clean verify
+
+      - name: Verify packaged plugin
+        shell: bash
+        env:
+          JAR_NAME: ${{ steps.metadata.outputs.jar_name }}
+          VERSION: ${{ steps.metadata.outputs.version }}
+        run: |
+          set -euo pipefail
+          jar_path="target/$JAR_NAME"
+          test -f "$jar_path"
+
+          mapfile -t final_jars < <(find target -maxdepth 1 -type f -name 'SimpChatCensor-*.jar' -printf '%f\n')
+          if [[ "${#final_jars[@]}" -ne 1 || "${final_jars[0]}" != "$JAR_NAME" ]]; then
+            printf 'Expected exactly one final JAR named %s, found: %s\n' "$JAR_NAME" "${final_jars[*]}" >&2
+            exit 1
           fi
 
-          gh release create "$TAG_NAME" dist/*.jar "${release_args[@]}"
+          packaged_version="$(
+            unzip -p "$jar_path" plugin.yml \
+              | awk '$1 == "version:" {print $2; exit}' \
+              | tr -d "\"'\r"
+          )"
+          if [[ "$packaged_version" != "$VERSION" ]]; then
+            printf 'Packaged plugin.yml version mismatch: expected %s, got %s\n' "$VERSION" "$packaged_version" >&2
+            exit 1
+          fi
+
+          mkdir -p dist
+          cp "$jar_path" "dist/$JAR_NAME"
+          (
+            cd dist
+            sha256sum "$JAR_NAME" > SHA256SUMS.txt
+            sha256sum --check SHA256SUMS.txt
+          )
+
+      - name: Upload verified release files
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.metadata.outputs.artifact_name }}
+          path: |
+            dist/${{ steps.metadata.outputs.jar_name }}
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 14
+
+  release:
+    name: Publish versioned release
+    needs: build
+    if: needs.build.outputs.release_requested == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: release-${{ github.repository }}
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout release commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Download verified release files
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+          path: dist
+
+      - name: Verify release files
+        shell: bash
+        env:
+          JAR_NAME: ${{ needs.build.outputs.jar_name }}
+        run: |
+          set -euo pipefail
+          mapfile -t release_files < <(find dist -maxdepth 1 -type f -printf '%f\n' | sort)
+          expected_files=("$JAR_NAME" "SHA256SUMS.txt")
+          mapfile -t expected_files < <(printf '%s\n' "${expected_files[@]}" | sort)
+          if [[ "${release_files[*]}" != "${expected_files[*]}" ]]; then
+            printf 'Unexpected release files: %s\n' "${release_files[*]}" >&2
+            exit 1
+          fi
+          (
+            cd dist
+            sha256sum --check SHA256SUMS.txt
+          )
+
+      - name: Create immutable release tag
+        shell: bash
+        env:
+          TAG_NAME: ${{ needs.build.outputs.tag_name }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          git fetch origin main --tags
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+          if git rev-parse --verify --quiet "refs/tags/$TAG_NAME^{commit}" >/dev/null; then
+            tag_commit="$(git rev-list -n 1 "$TAG_NAME")"
+            if [[ "$tag_commit" != "$GITHUB_SHA" ]]; then
+              printf 'Tag %s already points to %s, refusing to move it to %s\n' \
+                "$TAG_NAME" "$tag_commit" "$GITHUB_SHA" >&2
+              exit 1
+            fi
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG_NAME" "$GITHUB_SHA" -m "SimpChatCensor $VERSION"
+            git push origin "refs/tags/$TAG_NAME"
+          fi
+
+      - name: Create or verify GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JAR_NAME: ${{ needs.build.outputs.jar_name }}
+          TAG_NAME: ${{ needs.build.outputs.tag_name }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          prerelease=false
+          if [[ "$VERSION" == *-* ]]; then
+            prerelease=true
+          fi
+
+          if gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            is_draft="$(gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft')"
+            is_prerelease="$(gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json isPrerelease --jq '.isPrerelease')"
+            release_commit="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG_NAME" --jq '.object.sha')"
+            object_type="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG_NAME" --jq '.object.type')"
+            if [[ "$object_type" == "tag" ]]; then
+              release_commit="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$release_commit" --jq '.object.sha')"
+            fi
+            if [[ "$release_commit" != "$GITHUB_SHA" ]]; then
+              printf 'Release %s targets %s instead of %s\n' "$TAG_NAME" "$release_commit" "$GITHUB_SHA" >&2
+              exit 1
+            fi
+
+            mapfile -t actual_assets < <(
+              gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | sort
+            )
+            expected_assets=("$JAR_NAME" "SHA256SUMS.txt")
+            mapfile -t expected_assets < <(printf '%s\n' "${expected_assets[@]}" | sort)
+
+            if [[ "$is_draft" != "true" ]]; then
+              if [[ "${actual_assets[*]}" != "${expected_assets[*]}" \
+                || "$is_prerelease" != "$prerelease" ]]; then
+                printf 'Existing release %s does not match the expected immutable state\n' "$TAG_NAME" >&2
+                exit 1
+              fi
+
+              mkdir existing-release
+              gh release download "$TAG_NAME" \
+                --repo "$GITHUB_REPOSITORY" \
+                --dir existing-release \
+                --pattern "$JAR_NAME" \
+                --pattern SHA256SUMS.txt
+              for asset in "${expected_assets[@]}"; do
+                if ! cmp --silent "dist/$asset" "existing-release/$asset"; then
+                  printf 'Published asset %s differs from this verified build\n' "$asset" >&2
+                  exit 1
+                fi
+              done
+              exit 0
+            fi
+
+            for asset in "${actual_assets[@]}"; do
+              if [[ "$asset" != "$JAR_NAME" && "$asset" != "SHA256SUMS.txt" ]]; then
+                printf 'Draft release contains unexpected asset %s\n' "$asset" >&2
+                exit 1
+              fi
+            done
+
+            if [[ "${#actual_assets[@]}" -gt 0 ]]; then
+              mkdir existing-draft
+              for asset in "${actual_assets[@]}"; do
+                gh release download "$TAG_NAME" \
+                  --repo "$GITHUB_REPOSITORY" \
+                  --dir existing-draft \
+                  --pattern "$asset"
+                if ! cmp --silent "dist/$asset" "existing-draft/$asset"; then
+                  printf 'Draft asset %s conflicts with this verified build\n' "$asset" >&2
+                  exit 1
+                fi
+              done
+            fi
+          else
+            release_args=(
+              --repo "$GITHUB_REPOSITORY"
+              --title "SimpChatCensor $VERSION"
+              --generate-notes
+              --verify-tag
+              --draft
+            )
+            if [[ "$prerelease" == "true" ]]; then
+              release_args+=(--prerelease)
+            fi
+            gh release create "$TAG_NAME" "${release_args[@]}"
+            actual_assets=()
+          fi
+
+          for asset in "$JAR_NAME" "SHA256SUMS.txt"; do
+            if [[ ! " ${actual_assets[*]} " =~ " $asset " ]]; then
+              gh release upload "$TAG_NAME" "dist/$asset" --repo "$GITHUB_REPOSITORY"
+            fi
+          done
+
+          mapfile -t draft_assets < <(
+            gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | sort
+          )
+          expected_assets=("$JAR_NAME" "SHA256SUMS.txt")
+          mapfile -t expected_assets < <(printf '%s\n' "${expected_assets[@]}" | sort)
+          if [[ "${draft_assets[*]}" != "${expected_assets[*]}" ]]; then
+            printf 'Draft release assets are incomplete or unexpected: %s\n' "${draft_assets[*]}" >&2
+            exit 1
+          fi
+
+          mkdir verified-draft
+          gh release download "$TAG_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir verified-draft \
+            --pattern "$JAR_NAME" \
+            --pattern SHA256SUMS.txt
+          for asset in "${expected_assets[@]}"; do
+            if ! cmp --silent "dist/$asset" "verified-draft/$asset"; then
+              printf 'Draft asset %s differs from this verified build\n' "$asset" >&2
+              exit 1
+            fi
+          done
+
+          gh release edit "$TAG_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft=false \
+            --prerelease="$prerelease"
+
+          mapfile -t actual_assets < <(
+            gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | sort
+          )
+          expected_assets=("$JAR_NAME" "SHA256SUMS.txt")
+          mapfile -t expected_assets < <(printf '%s\n' "${expected_assets[@]}" | sort)
+          is_draft="$(gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft')"
+          is_prerelease="$(gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --json isPrerelease --jq '.isPrerelease')"
+          if [[ "${actual_assets[*]}" != "${expected_assets[*]}" \
+            || "$is_draft" != "false" \
+            || "$is_prerelease" != "$prerelease" ]]; then
+            printf 'Published release %s failed final verification\n' "$TAG_NAME" >&2
+            exit 1
+          fi
+
+      - name: Verify published assets
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JAR_NAME: ${{ needs.build.outputs.jar_name }}
+          TAG_NAME: ${{ needs.build.outputs.tag_name }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir published
+          gh release download "$TAG_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir published \
+            --pattern "$JAR_NAME" \
+            --pattern SHA256SUMS.txt
+
+          mapfile -t published_files < <(find published -maxdepth 1 -type f -printf '%f\n' | sort)
+          expected_files=("$JAR_NAME" "SHA256SUMS.txt")
+          mapfile -t expected_files < <(printf '%s\n' "${expected_files[@]}" | sort)
+          if [[ "${published_files[*]}" != "${expected_files[*]}" ]]; then
+            printf 'Unexpected downloaded release files: %s\n' "${published_files[*]}" >&2
+            exit 1
+          fi
+
+          (
+            cd published
+            sha256sum --check SHA256SUMS.txt
+          )
+          for asset in "$JAR_NAME" "SHA256SUMS.txt"; do
+            if ! cmp --silent "dist/$asset" "published/$asset"; then
+              printf 'Downloaded asset %s differs from this verified build\n' "$asset" >&2
+              exit 1
+            fi
+          done
+          packaged_version="$(
+            unzip -p "published/$JAR_NAME" plugin.yml \
+              | awk '$1 == "version:" {print $2; exit}' \
+              | tr -d "\"'\r"
+          )"
+          if [[ "$packaged_version" != "$VERSION" ]]; then
+            printf 'Published plugin.yml version mismatch: expected %s, got %s\n' \
+              "$VERSION" "$packaged_version" >&2
+            exit 1
+          fi

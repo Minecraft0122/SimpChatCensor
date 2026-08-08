@@ -17,21 +17,18 @@ SimpChatCensor 是一个面向 Paper 1.21.4+ / Folia 26.1.2+ 的聊天与命令�
 ## 构建
 
 ```powershell
-mvn clean package
+mvn -B -ntp clean verify
 ```
 
-构建产物位于 `target/SimpChatCensor-1.5-beta.jar`。
+构建产物位于 `target/SimpChatCensor-<版本号>.jar`。
 
 ## 自动发布
 
-推送 `v*` 标签会触发 GitHub Actions 自动构建并创建 GitHub Release。
+`main` 上的项目版本发生变化时，GitHub Actions 会在完整构建通过后自动创建
+`v<版本号>` 标签和 GitHub Release，并上传正式 JAR 与 `SHA256SUMS.txt`。
+普通提交不会发版；不要手工创建发布标签。`alpha`、`beta`、`rc` 版本会自动标记为预发布。
 
-```powershell
-git tag -a v1.5-beta -m "SimpChatCensor 1.5-beta"
-git push origin v1.5-beta
-```
-
-标签中包含 `alpha`、`beta` 或 `rc` 时，Release 会自动标记为预发布。
+完整的开发、测试、版本号和发布要求见 [AGENTS.md](AGENTS.md)。
 
 ## 命令
 
