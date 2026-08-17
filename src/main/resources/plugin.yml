@@ -1,5 +1,5 @@
 name: SimpChatCensor
-version: 2.0.0-beta
+version: 2.0.1-beta
 main: com.simpchatcensor.SimpChatCensorPlugin
 api-version: '1.21'
 folia-supported: true

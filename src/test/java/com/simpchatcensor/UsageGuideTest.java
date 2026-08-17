@@ -21,6 +21,8 @@ class UsageGuideTest {
             assertTrue(guide.contains("use-regex: true"));
             assertTrue(guide.contains("Matcher.find()"));
             assertTrue(guide.contains("CASE_INSENSITIVE | UNICODE_CASE"));
+            assertTrue(guide.contains("返回首个结果"));
+            assertTrue(guide.contains("只有需放行合法域名时才加入 domain-whitelist"));
         }
     }
 }

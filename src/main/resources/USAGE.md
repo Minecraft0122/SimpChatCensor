@@ -81,7 +81,7 @@ IP/域名检测、拼音检测和编辑距离检测有各自的开关；打开�
 
 在 `config.yml` 设置 `use-regex: true` 后，`message-blacklist.yml` 中的每一项都会按 Java `Pattern` 编译，使用
 `CASE_INSENSITIVE | UNICODE_CASE`，并在原始消息上执行 `Matcher.find()`。只要正则在消息或命令中找到一段匹配就会触发，
-不要求整条消息完全相等；IP/域名、拼音和编辑距离阶段仍会继续执行。
+不要求整条消息完全相等。正则未命中时，才会依次检查 IP/域名、拼音和编辑距离；任一阶段命中后会立即停止并返回首个结果。
 正则阶段不会使用 `advanced-preprocess` 的 Unicode、Leet 或空白归一化；需要这些变体时依靠独立的拼音/编辑距离检测。
 
 ```yaml
@@ -120,7 +120,7 @@ banned-words:
   - 'b[\s._-]*a[\s._-]*d'
   # QQ、VX 或微信号，后面接 5 到 12 位数字
   - '(?:qq|vx|微信)\s*[:：]?\s*[1-9]\d{4,11}'
-  # 域名和可选端口；普通域名更推荐使用 domain-whitelist 配置
+  # 域名和可选端口；普通域名由内置域名检测覆盖，只有需放行合法域名时才加入 domain-whitelist
   - '(?:play\.)?example\.com(?::\d{1,5})?'
   # 整条消息只有“广告”（允许两侧空白）
   - '^\s*广告\s*$'
