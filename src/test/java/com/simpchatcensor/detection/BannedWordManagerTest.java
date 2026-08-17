@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.logging.Logger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BannedWordManagerTest {
     @TempDir
@@ -47,6 +48,25 @@ class BannedWordManagerTest {
         assertEquals(DetectionType.FUZZY_PINYIN, manager.scan("你吗").orElseThrow().type());
     }
 
+    @Test
+    void detectsRegexInRawMessageWithoutMatchingAContainingWord() {
+        BannedWordManager manager = new BannedWordManager(Logger.getAnonymousLogger());
+        manager.reload(config(
+                true,
+                false,
+                false,
+                List.of("(?<![A-Za-z0-9_])bad(?![A-Za-z0-9_])"),
+                tempDir,
+                true
+        ));
+
+        DetectionResult result = manager.scan("BAD").orElseThrow();
+        assertEquals(DetectionType.REGEX, result.type());
+        assertEquals("BAD", result.detectedText());
+        assertEquals("(?<![A-Za-z0-9_])bad(?![A-Za-z0-9_])", result.rule());
+        assertTrue(manager.scan("badger").isEmpty());
+    }
+
     private static PluginConfig config(
             boolean advanced,
             boolean pinyin,
@@ -54,11 +74,23 @@ class BannedWordManagerTest {
             List<String> words,
             Path dataFolder
     ) {
+        return config(advanced, pinyin, levenshtein, words, dataFolder, false);
+    }
+
+    private static PluginConfig config(
+            boolean advanced,
+            boolean pinyin,
+            boolean levenshtein,
+            List<String> words,
+            Path dataFolder,
+            boolean useRegex
+    ) {
         return new PluginConfig(
                 DetectionAction.CANCEL,
-                false,
+                useRegex,
                 advanced,
                 true,
+                PluginConfig.DEFAULT_COMMAND_WHITELIST,
                 false,
                 false,
                 "",

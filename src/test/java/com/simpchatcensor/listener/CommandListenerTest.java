@@ -1,35 +1,56 @@
 package com.simpchatcensor.listener;
 
+import com.simpchatcensor.config.PluginConfig;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CommandListenerTest {
     @Test
-    void skipsOwnManagementCommandsBeforeCensoringArguments() {
-        assertTrue(CommandListener.isManagementCommand("/bwf whitelist add simpmc.org"));
-        assertTrue(CommandListener.isManagementCommand("/BWF add 1,1,1,1"));
-        assertTrue(CommandListener.isManagementCommand("/simpchatcensor:bwf whitelist add simpmc.org"));
+    void skipsConfiguredCommandsBeforeCensoringArguments() {
+        assertTrue(CommandListener.isWhitelistedCommand(
+                "/bwf whitelist add simpmc.org",
+                PluginConfig.DEFAULT_COMMAND_WHITELIST
+        ));
+        assertTrue(CommandListener.isWhitelistedCommand(
+                "/BWF add 1,1,1,1",
+                PluginConfig.DEFAULT_COMMAND_WHITELIST
+        ));
+        assertTrue(CommandListener.isWhitelistedCommand(
+                "/simpchatcensor:bwf whitelist add simpmc.org",
+                PluginConfig.DEFAULT_COMMAND_WHITELIST
+        ));
     }
 
     @Test
     void skipsLuckPermsCommandsContainingPermissionNodes() {
-        assertTrue(CommandListener.isManagementCommand(
-                "/lp user Steve permission set essentials.home true"
+        assertTrue(CommandListener.isWhitelistedCommand(
+                "/lp user Steve permission set essentials.home true",
+                PluginConfig.DEFAULT_COMMAND_WHITELIST
         ));
-        assertTrue(CommandListener.isManagementCommand(
-                "/luckperms group default permission set minecraft.command.help true"
+        assertTrue(CommandListener.isWhitelistedCommand(
+                "/luckperms group default permission set minecraft.command.help true",
+                PluginConfig.DEFAULT_COMMAND_WHITELIST
         ));
-        assertTrue(CommandListener.isManagementCommand(
-                "/luckperms:lp user Steve permission unset essentials.home"
+        assertTrue(CommandListener.isWhitelistedCommand(
+                "/luckperms:lp user Steve permission unset essentials.home",
+                PluginConfig.DEFAULT_COMMAND_WHITELIST
         ));
     }
 
     @Test
-    void keepsOtherCommandsCensorable() {
-        assertFalse(CommandListener.isManagementCommand("/msg player simpmc.org"));
-        assertFalse(CommandListener.isManagementCommand("bwf whitelist add simpmc.org"));
-        assertFalse(CommandListener.isManagementCommand("/bwfextra whitelist add simpmc.org"));
+    void keepsCommandsOutsideTheWhitelistCensorable() {
+        List<String> whitelist = List.of("bwf", "lp", "luckperms", "mail");
+        assertTrue(CommandListener.isWhitelistedCommand("/mail send Steve cnpvp.top", whitelist));
+        assertFalse(CommandListener.isWhitelistedCommand("/msg player simpmc.org", whitelist));
+        assertFalse(CommandListener.isWhitelistedCommand("bwf whitelist add simpmc.org", whitelist));
+        assertFalse(CommandListener.isWhitelistedCommand("/bwfextra whitelist add simpmc.org", whitelist));
+        assertFalse(CommandListener.isWhitelistedCommand("/lpa user Steve permission set example.node true", whitelist));
+        assertFalse(CommandListener.isWhitelistedCommand("/luckpermsx user Steve permission set example.node true", whitelist));
+        assertFalse(CommandListener.isWhitelistedCommand("/mailbox Steve cnpvp.top", whitelist));
+        assertFalse(CommandListener.isWhitelistedCommand("/bwf whitelist add simpmc.org", List.of("bwf*")));
     }
 }

@@ -10,6 +10,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 
+import java.util.Collection;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -36,7 +37,7 @@ public final class CommandListener implements Listener {
         }
 
         String command = event.getMessage();
-        if (isManagementCommand(command)) {
+        if (isWhitelistedCommand(command, config.commandWhitelist())) {
             return;
         }
 
@@ -62,25 +63,36 @@ public final class CommandListener implements Listener {
         ));
     }
 
-    public static boolean isManagementCommand(String command) {
-        if (command == null) {
+    public static boolean isWhitelistedCommand(String command, Collection<String> commandWhitelist) {
+        String root = commandRoot(command);
+        if (root == null || commandWhitelist == null) {
             return false;
+        }
+
+        return commandWhitelist.stream()
+                .filter(entry -> entry != null && !entry.isBlank())
+                .anyMatch(entry -> root.equalsIgnoreCase(entry));
+    }
+
+    private static String commandRoot(String command) {
+        if (command == null) {
+            return null;
         }
 
         String trimmed = command.trim();
         if (!trimmed.startsWith("/")) {
-            return false;
+            return null;
         }
 
         String root = firstToken(trimmed.substring(1));
         int namespaceSeparator = root.indexOf(':');
-        if (namespaceSeparator >= 0 && namespaceSeparator + 1 < root.length()) {
+        if (namespaceSeparator >= 0) {
+            if (namespaceSeparator + 1 == root.length()) {
+                return null;
+            }
             root = root.substring(namespaceSeparator + 1);
         }
-
-        return root.equalsIgnoreCase("bwf")
-                || root.equalsIgnoreCase("lp")
-                || root.equalsIgnoreCase("luckperms");
+        return root.isEmpty() ? null : root;
     }
 
     private static String firstToken(String value) {

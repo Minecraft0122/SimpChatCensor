@@ -10,7 +10,11 @@ import com.simpchatcensor.util.ViolationLogger;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.File;
+
 public final class SimpChatCensorPlugin extends JavaPlugin {
+    private static final String USAGE_GUIDE_RESOURCE = "USAGE.md";
+
     private ConfigManager configManager;
     private BannedWordManager bannedWordManager;
     private ViolationLogger violationLogger;
@@ -19,6 +23,7 @@ public final class SimpChatCensorPlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        saveUsageGuide();
 
         this.configManager = new ConfigManager(this);
         this.bannedWordManager = new BannedWordManager(getLogger());
@@ -54,6 +59,13 @@ public final class SimpChatCensorPlugin extends JavaPlugin {
 
     public BannedWordManager bannedWordManager() {
         return bannedWordManager;
+    }
+
+    private void saveUsageGuide() {
+        File usageGuide = new File(getDataFolder(), USAGE_GUIDE_RESOURCE);
+        if (!usageGuide.isFile()) {
+            saveResource(USAGE_GUIDE_RESOURCE, false);
+        }
     }
 
     private void registerListeners() {

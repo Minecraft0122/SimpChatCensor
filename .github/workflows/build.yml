@@ -189,6 +189,10 @@ jobs:
             printf 'Packaged plugin.yml version mismatch: expected %s, got %s\n' "$VERSION" "$packaged_version" >&2
             exit 1
           fi
+          if ! jar tf "$jar_path" | grep -Fx 'USAGE.md' >/dev/null; then
+            printf 'Packaged JAR is missing USAGE.md\n' >&2
+            exit 1
+          fi
 
           mkdir -p dist
           cp "$jar_path" "dist/$JAR_NAME"
@@ -455,5 +459,9 @@ jobs:
           if [[ "$packaged_version" != "$VERSION" ]]; then
             printf 'Published plugin.yml version mismatch: expected %s, got %s\n' \
               "$VERSION" "$packaged_version" >&2
+            exit 1
+          fi
+          if ! jar tf "published/$JAR_NAME" | grep -Fx 'USAGE.md' >/dev/null; then
+            printf 'Published JAR is missing USAGE.md\n' >&2
             exit 1
           fi

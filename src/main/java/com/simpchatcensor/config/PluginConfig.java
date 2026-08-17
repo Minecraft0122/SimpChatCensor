@@ -8,6 +8,7 @@ public record PluginConfig(
         boolean useRegex,
         boolean advancedPreprocess,
         boolean filterCommands,
+        List<String> commandWhitelist,
         boolean notifyStaff,
         boolean logToFile,
         String staffMessage,
@@ -19,6 +20,8 @@ public record PluginConfig(
         List<String> bannedWords,
         Path dataFolder
 ) {
+    public static final List<String> DEFAULT_COMMAND_WHITELIST = List.of("bwf", "lp", "luckperms");
+
     public record PinyinConfig(boolean enabled, int maxCombinations) {
     }
 

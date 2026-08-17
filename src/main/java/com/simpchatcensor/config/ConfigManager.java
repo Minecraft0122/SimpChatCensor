@@ -8,6 +8,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public final class ConfigManager {
     private static final String MESSAGE_BLACKLIST_FILE = "message-blacklist.yml";
@@ -38,12 +39,24 @@ public final class ConfigManager {
                 source.getString("ip-domain-detection.action"),
                 defaultAction
         );
+        boolean commandWhitelistConfigured = source.contains("command-whitelist", true);
+        boolean commandWhitelistIsList = source.isList("command-whitelist");
+        if (commandWhitelistConfigured && !commandWhitelistIsList) {
+            plugin.getLogger().warning(
+                    "command-whitelist must be a YAML list; no command roots will bypass content checks."
+            );
+        }
 
         this.config = new PluginConfig(
                 defaultAction,
                 source.getBoolean("use-regex", false),
                 source.getBoolean("advanced-preprocess", true),
                 source.getBoolean("filter-commands", true),
+                resolveCommandWhitelist(
+                        commandWhitelistConfigured,
+                        commandWhitelistIsList,
+                        source.getStringList("command-whitelist")
+                ),
                 source.getBoolean("notify-staff", true),
                 source.getBoolean("log-to-file", true),
                 source.getString("staff-message", "&c[SimpChatCensor] &f%player% &7触发 &e%type%&7: &f%match%"),
@@ -249,6 +262,47 @@ public final class ConfigManager {
 
     private static int positive(int value, int fallback) {
         return value > 0 ? value : fallback;
+    }
+
+    static List<String> resolveCommandWhitelist(
+            boolean configured,
+            boolean configuredAsList,
+            List<String> configuredEntries
+    ) {
+        if (!configured) {
+            return PluginConfig.DEFAULT_COMMAND_WHITELIST;
+        }
+        if (!configuredAsList) {
+            return List.of();
+        }
+
+        List<String> cleaned = new ArrayList<>();
+        for (String entry : configuredEntries) {
+            String root = cleanCommandRoot(entry);
+            if (!root.isEmpty() && !cleaned.contains(root)) {
+                cleaned.add(root);
+            }
+        }
+        return List.copyOf(cleaned);
+    }
+
+    private static String cleanCommandRoot(String value) {
+        String root = cleanValue(value);
+        if (root.startsWith("/")) {
+            root = root.substring(1);
+        }
+        if (root.isEmpty() || root.chars().anyMatch(Character::isWhitespace)) {
+            return "";
+        }
+
+        int namespaceSeparator = root.indexOf(':');
+        if (namespaceSeparator >= 0) {
+            if (namespaceSeparator + 1 == root.length() || root.indexOf(':', namespaceSeparator + 1) >= 0) {
+                return "";
+            }
+            root = root.substring(namespaceSeparator + 1);
+        }
+        return root.toLowerCase(Locale.ROOT);
     }
 
     private static List<String> cleanList(List<String> input) {

@@ -42,12 +42,15 @@ mvn -B -ntp clean verify
 /bwf whitelist add <IP/域名>
 ```
 
-`/bwf` 管理命令会自动绕过内容扫描，因此可以正常添加白名单与消息黑名单条目。
-`/lp`、`/luckperms`（含命名空间形式）同样会绕过扫描，避免把权限节点误识别为域名。
+OP 默认拥有 `simpchatcensor.bypass`，会跳过聊天和命令内容检测；可通过权限插件按需显式撤销或授予。
+命令内容使用 `config.yml` 的 `command-whitelist` 精确根命令白名单处理。默认白名单为
+`bwf`、`lp`、`luckperms`，支持 Bukkit 命名空间形式，避免把 LuckPerms 权限节点误识别为域名；
+未列出的命令仍会在 `filter-commands: true` 时参与检测。
+插件首次启动时会生成 `plugins/SimpChatCensor/USAGE.md`，其中包含完整指令、权限和 Java 正则示例。
 
 ## 配置文件
 
-- `config.yml`：过滤选项、处理动作、提示文本、域名白名单与 GeoIP 设置
+- `config.yml`：过滤选项、命令根白名单、处理动作、提示文本、域名白名单与 GeoIP 设置
 - `message-blacklist.yml`：消息违禁词/正则列表
 - `ip-whitelist.yml`：允许出现在消息或命令中的 IP；未列出的 IP 默认全部拦截
 

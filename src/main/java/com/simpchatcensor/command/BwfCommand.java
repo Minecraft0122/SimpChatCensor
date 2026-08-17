@@ -198,6 +198,7 @@ public final class BwfCommand implements CommandExecutor, TabCompleter {
         send(sender, "&7/" + label + " geoip reload &f- 重载 GeoIP 数据库");
         send(sender, "&7/" + label + " geoip update &f- 下载并重载 GeoIP 数据库");
         send(sender, "&7/" + label + " whitelist add <IP/域名> &f- 添加白名单");
+        send(sender, "&7详细说明: &fplugins/SimpChatCensor/USAGE.md");
     }
 
     private void send(CommandSender sender, String message) {

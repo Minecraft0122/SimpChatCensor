@@ -44,6 +44,7 @@
   - `ConfigManager#reload` 的 fallback、清洗和边界校验；
   - `PluginConfig` 的不可变字段；
   - README 的用户说明；
+  - `src/main/resources/USAGE.md` 的服主说明；
   - 相关测试及测试配置工厂。
 - 已生成的旧配置不会自动获得新键，代码 fallback 必须与默认资源一致。
 - 保持数据归属：`message-blacklist.yml` 存违禁词，`ip-whitelist.yml` 存 IP/CIDR，
@@ -80,11 +81,16 @@
 
 - `/bwf` 管理权限为 `simpchatcensor.admin`；内容绕过和管理员通知分别使用
   `simpchatcensor.bypass`、`simpchatcensor.notify`。
+- `simpchatcensor.bypass` 默认授予 OP，并同时跳过聊天和命令内容检测；通过权限插件撤销或授予时，
+  必须在 README 和 USAGE 中明确其影响范围。
 - 新增或修改命令、权限时，同步更新执行分支、参数校验、补全、`plugin.yml` 和 README。
-- `CommandListener` 的判断顺序保持为：功能开关、管理命令豁免、玩家 bypass、内容扫描。
-- 命令豁免只比较剥离 Bukkit 命名空间后的完整根命令，忽略大小写；禁止用 `startsWith` 等
-  宽泛规则放行相似命令。
-- 新命令豁免必须覆盖普通形式、命名空间形式和相似但不得豁免的反例。
+- 指令、权限、过滤范围或正则语义变化时，同步更新 `src/main/resources/USAGE.md`；该文件首次启动时
+  导出到 `plugins/SimpChatCensor/USAGE.md`，已有说明不会被覆盖。
+- `CommandListener` 的判断顺序保持为：功能开关、命令根白名单、玩家 bypass、内容扫描。
+- 命令根白名单由 `config.yml` 的 `command-whitelist` 管理，只比较剥离 Bukkit 命名空间后的完整根命令，
+  忽略大小写；禁止用 `startsWith`、通配符或前缀规则放行相似命令。
+- 新增或调整命令根白名单时，更新默认配置、fallback、README、USAGE 和测试；覆盖普通形式、命名空间形式和
+  相似但不得豁免的反例。旧配置缺少该键时的 fallback 必须保持当前默认白名单，显式空列表不得被回填。
 - 网络型管理命令要有并发闸门，避免重复下载或同时写入同一文件。
 
 ## 测试与构建
@@ -122,9 +128,11 @@ git diff --check
   新修复都必须在同一交付中升版。
 - 仅文档、测试、CI、仓库规范或不改变交付行为的内部重构不升插件版本；但如果分支中已有尚未
   发布的运行时变化，必须先为整批变化升版再发布。
+- 仅留在仓库中的说明属于文档变更；如果说明被打包进 JAR 并在首次启动导出到插件数据目录，
+  则属于用户可见交付，至少按 PATCH 升版并通过发布流程交付。
 - 用户未指定目标版本时，按上述规则选择最小合法增量，并在交付说明中明确理由。
 - 每次升版必须同步修改 `pom.xml` 项目版本和 `src/main/resources/plugin.yml` 版本；README
-  若存在固定版本示例也要同步。两处运行时版本必须逐字一致。
+  和 `src/main/resources/USAGE.md` 若存在固定版本示例也要同步。两处运行时版本必须逐字一致。
 - 禁止发布 `SNAPSHOT`，禁止复用已发布版本，禁止移动或覆盖任何已有 `v<version>` 标签和资产。
 
 ## 提交、推送与自动发布

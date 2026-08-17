@@ -19,6 +19,14 @@ advanced-preprocess: true
 # 是否检测玩家执行的命令内容。
 filter-commands: true
 
+# 命令内容免检白名单。建议只写根命令，不带 / 或参数；兼容带 / 和 Bukkit 命名空间的写法。
+# 比较时会忽略大小写并剥离 Bukkit 命名空间。
+# 未列出的命令在 filter-commands 为 true 时仍会检测；显式写成 [] 可让所有命令参与检测。
+command-whitelist:
+  - bwf
+  - lp
+  - luckperms
+
 # 是否把违规记录通知给拥有 simpchatcensor.notify 权限的管理员。
 notify-staff: true
 
