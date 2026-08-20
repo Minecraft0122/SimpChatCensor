@@ -27,6 +27,25 @@ command-whitelist:
   - lp
   - luckperms
 
+# 聊天刷屏检测。刷屏违规始终取消当前消息，不受顶部 action 的 filter/warn 设置影响。
+spam-detection:
+  enabled: true
+  # 同一玩家在此时间内重复发送完全相同的上一条消息会被拦截。
+  duplicate-window-seconds: 5
+  repeated-content:
+    enabled: true
+    # 同一片段连续出现至少 4 次，且重复总长度达到 12 个 Java 字符时拦截。
+    min-repeats: 4
+    min-segment-length: 1
+    max-segment-length: 16
+    min-total-length: 12
+  long-message-burst:
+    enabled: true
+    # 10 秒内发送 3 条至少 300 个 Java 字符的消息时拦截第 3 条及后续消息。
+    min-length: 300
+    max-messages: 3
+    window-seconds: 10
+
 # 是否把违规记录通知给拥有 simpchatcensor.notify 权限的管理员。
 notify-staff: true
 

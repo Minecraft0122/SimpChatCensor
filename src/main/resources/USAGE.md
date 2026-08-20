@@ -17,6 +17,40 @@
 - `message-blacklist.yml`：聊天和未列入命令白名单的命令内容所使用的关键词或正则表达式。
 - `ip-whitelist.yml`：允许出现在消息或命令中的精确 IP、IPv6 或 IPv4 CIDR。
 
+## 聊天刷屏检测
+
+`spam-detection` 只作用于聊天消息，不改变 `/bwf` 管理命令和命令根白名单的处理。刷屏检测在普通违禁词扫描前执行，
+重复消息或其它刷屏命中会直接取消当前消息，
+不受顶部 `action: filter` 或 `action: warn` 设置影响；拥有 `simpchatcensor.bypass` 的玩家不参与刷屏统计。
+
+- 同一玩家在 `duplicate-window-seconds` 内连续发送与上一条完全相同的消息，第二条会被拦截；大小写、空格或标点不同不算完全一致。
+- 一条消息中同一片段连续重复达到 `min-repeats`，且重复总长度达到 `min-total-length`，会被拦截。例如连续发送“神经病”多次。
+- `long-message-burst` 会统计滑动时间窗内的长消息；默认 10 秒内第 3 条长度至少 300 个 Java 字符的消息会被拦截，后续仍满足条件的长消息也会拦截。
+
+默认配置如下，可按服务器聊天节奏调整：
+
+```yaml
+spam-detection:
+  enabled: true
+  duplicate-window-seconds: 5
+  repeated-content:
+    enabled: true
+    min-repeats: 4
+    min-segment-length: 1
+    max-segment-length: 16
+    min-total-length: 12
+  long-message-burst:
+    enabled: true
+    min-length: 300
+    max-messages: 3
+    window-seconds: 10
+```
+
+配置数值会被限制在合理范围内，防止异常配置造成过高 CPU 或内存开销。玩家退出、插件重载或获得 bypass 权限后，
+该玩家的临时刷屏历史会清除。内置违禁词库位于 `message-blacklist.yml`；升级时会按 `library-version` 合并新增词条，
+保留服主自己的词条和删除选择，比较时忽略大小写并去重。
+当前内置库覆盖常见中文/英文辱骂、作弊相关词和常见变体；服主可以直接编辑该文件，或用 `/bwf add`、`/bwf remove` 管理条目。
+
 ## 管理指令
 
 所有 `/bwf` 子指令都需要 `simpchatcensor.admin` 权限，默认只有 OP 拥有。

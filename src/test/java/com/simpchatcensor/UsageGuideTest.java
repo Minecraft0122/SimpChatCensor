@@ -23,6 +23,8 @@ class UsageGuideTest {
             assertTrue(guide.contains("CASE_INSENSITIVE | UNICODE_CASE"));
             assertTrue(guide.contains("返回首个结果"));
             assertTrue(guide.contains("只有需放行合法域名时才加入 domain-whitelist"));
+            assertTrue(guide.contains("spam-detection"));
+            assertTrue(guide.contains("重复消息"));
         }
     }
 }

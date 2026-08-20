@@ -6,6 +6,9 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -15,6 +18,9 @@ public final class ConfigManager {
     private static final String IP_WHITELIST_FILE = "ip-whitelist.yml";
     private static final String BANNED_WORDS_PATH = "banned-words";
     private static final String IP_WHITELIST_PATH = "ip-whitelist";
+    private static final String BANNED_WORD_LIBRARY_VERSION_PATH = "library-version";
+    private static final int BUNDLED_BANNED_WORD_LIBRARY_VERSION = 1;
+    private static final List<String> LEGACY_BUNDLED_BANNED_WORDS = List.of("fuck", "混蛋");
 
     private final JavaPlugin plugin;
     private PluginConfig config;
@@ -33,6 +39,7 @@ public final class ConfigManager {
         this.messageBlacklist = loadDataFile(MESSAGE_BLACKLIST_FILE);
         this.ipWhitelist = loadDataFile(IP_WHITELIST_FILE);
         migrateLegacyLists(source, messageBlacklistExisted, ipWhitelistExisted);
+        mergeBundledBannedWords();
 
         DetectionAction defaultAction = DetectionAction.fromString(source.getString("action"), DetectionAction.CANCEL);
         DetectionAction ipAction = DetectionAction.fromString(
@@ -89,7 +96,8 @@ public final class ConfigManager {
                         ipAction
                 ),
                 cleanList(messageBlacklist.getStringList(BANNED_WORDS_PATH)),
-                plugin.getDataFolder().toPath()
+                plugin.getDataFolder().toPath(),
+                loadSpamConfig(source)
         );
     }
 
@@ -166,6 +174,80 @@ public final class ConfigManager {
             plugin.saveResource(fileName, false);
         }
         return YamlConfiguration.loadConfiguration(file);
+    }
+
+    static PluginConfig.SpamConfig loadSpamConfig(FileConfiguration source) {
+        int minSegmentLength = bounded(
+                source.getInt("spam-detection.repeated-content.min-segment-length", 1),
+                1,
+                64,
+                1
+        );
+        int maxSegmentLength = Math.max(
+                minSegmentLength,
+                bounded(
+                        source.getInt("spam-detection.repeated-content.max-segment-length", 16),
+                        1,
+                        64,
+                        16
+                )
+        );
+
+        return new PluginConfig.SpamConfig(
+                source.getBoolean("spam-detection.enabled", true),
+                bounded(source.getInt("spam-detection.duplicate-window-seconds", 5), 1, 3600, 5),
+                new PluginConfig.RepeatedContentConfig(
+                        source.getBoolean("spam-detection.repeated-content.enabled", true),
+                        bounded(source.getInt("spam-detection.repeated-content.min-repeats", 4), 2, 100, 4),
+                        minSegmentLength,
+                        maxSegmentLength,
+                        bounded(source.getInt("spam-detection.repeated-content.min-total-length", 12), 1, 100_000, 12)
+                ),
+                new PluginConfig.LongMessageConfig(
+                        source.getBoolean("spam-detection.long-message-burst.enabled", true),
+                        bounded(source.getInt("spam-detection.long-message-burst.min-length", 300), 1, 100_000, 300),
+                        bounded(source.getInt("spam-detection.long-message-burst.max-messages", 3), 2, 100, 3),
+                        bounded(source.getInt("spam-detection.long-message-burst.window-seconds", 10), 1, 3600, 10)
+                )
+        );
+    }
+
+    private void mergeBundledBannedWords() {
+        int currentVersion = messageBlacklist.getInt(BANNED_WORD_LIBRARY_VERSION_PATH, 0);
+        if (currentVersion >= BUNDLED_BANNED_WORD_LIBRARY_VERSION) {
+            return;
+        }
+
+        YamlConfiguration bundled = loadBundledYaml(MESSAGE_BLACKLIST_FILE);
+        if (bundled == null) {
+            return;
+        }
+
+        List<String> merged = mergeBannedWordsForUpgrade(
+                currentVersion,
+                messageBlacklist.getStringList(BANNED_WORDS_PATH),
+                bundled.getStringList(BANNED_WORDS_PATH)
+        );
+        messageBlacklist.set(BANNED_WORDS_PATH, merged);
+        messageBlacklist.set(BANNED_WORD_LIBRARY_VERSION_PATH, BUNDLED_BANNED_WORD_LIBRARY_VERSION);
+        if (!saveDataFile(messageBlacklist, MESSAGE_BLACKLIST_FILE)) {
+            plugin.getLogger().warning("Failed to persist bundled banned-word library updates.");
+        }
+    }
+
+    private YamlConfiguration loadBundledYaml(String fileName) {
+        InputStream stream = plugin.getResource(fileName);
+        if (stream == null) {
+            plugin.getLogger().warning("Missing bundled resource: " + fileName);
+            return null;
+        }
+        try (InputStream input = stream;
+             InputStreamReader reader = new InputStreamReader(input, StandardCharsets.UTF_8)) {
+            return YamlConfiguration.loadConfiguration(reader);
+        } catch (IOException exception) {
+            plugin.getLogger().warning("Failed to read bundled resource " + fileName + ": " + exception.getMessage());
+            return null;
+        }
     }
 
     private File dataFile(String fileName) {
@@ -260,6 +342,13 @@ public final class ConfigManager {
         return value.matches("^[0-9a-fA-F:.]+(?:/\\d{1,3})?$");
     }
 
+    private static int bounded(int value, int minimum, int maximum, int fallback) {
+        if (value < minimum) {
+            return fallback;
+        }
+        return Math.min(value, maximum);
+    }
+
     private static int positive(int value, int fallback) {
         return value > 0 ? value : fallback;
     }
@@ -284,6 +373,41 @@ public final class ConfigManager {
             }
         }
         return List.copyOf(cleaned);
+    }
+
+    static List<String> mergeBannedWords(List<String> existing, List<String> bundled) {
+        List<String> merged = new ArrayList<>();
+        for (String value : existing) {
+            String cleaned = cleanValue(value);
+            if (!cleaned.isEmpty() && !containsIgnoreCase(merged, cleaned)) {
+                merged.add(cleaned);
+            }
+        }
+        for (String value : bundled) {
+            String cleaned = cleanValue(value);
+            if (!cleaned.isEmpty() && !containsIgnoreCase(merged, cleaned)) {
+                merged.add(cleaned);
+            }
+        }
+        return List.copyOf(merged);
+    }
+
+    static List<String> mergeBannedWordsForUpgrade(
+            int currentVersion,
+            List<String> existing,
+            List<String> bundled
+    ) {
+        List<String> wordsToAdd = bundled;
+        if (currentVersion <= 0) {
+            wordsToAdd = bundled.stream()
+                    .filter(word -> {
+                        String cleaned = cleanValue(word);
+                        return !containsIgnoreCase(LEGACY_BUNDLED_BANNED_WORDS, cleaned)
+                                || containsIgnoreCase(existing, cleaned);
+                    })
+                    .toList();
+        }
+        return mergeBannedWords(existing, wordsToAdd);
     }
 
     private static String cleanCommandRoot(String value) {

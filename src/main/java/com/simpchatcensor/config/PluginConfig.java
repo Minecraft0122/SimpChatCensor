@@ -18,7 +18,8 @@ public record PluginConfig(
         LevenshteinConfig levenshtein,
         IpDomainConfig ipDomain,
         List<String> bannedWords,
-        Path dataFolder
+        Path dataFolder,
+        SpamConfig spam
 ) {
     public static final List<String> DEFAULT_COMMAND_WHITELIST = List.of("bwf", "lp", "luckperms");
 
@@ -26,6 +27,31 @@ public record PluginConfig(
     }
 
     public record LevenshteinConfig(boolean enabled, int globalThreshold, int maxChecksPerMessage) {
+    }
+
+    public record SpamConfig(
+            boolean enabled,
+            int duplicateWindowSeconds,
+            RepeatedContentConfig repeatedContent,
+            LongMessageConfig longMessageBurst
+    ) {
+    }
+
+    public record RepeatedContentConfig(
+            boolean enabled,
+            int minRepeats,
+            int minSegmentLength,
+            int maxSegmentLength,
+            int minTotalLength
+    ) {
+    }
+
+    public record LongMessageConfig(
+            boolean enabled,
+            int minLength,
+            int maxMessages,
+            int windowSeconds
+    ) {
     }
 
     public record IpDomainConfig(

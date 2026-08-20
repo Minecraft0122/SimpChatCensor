@@ -113,7 +113,13 @@ class BannedWordManagerTest {
                         DetectionAction.CANCEL
                 ),
                 words,
-                dataFolder
+                dataFolder,
+                new PluginConfig.SpamConfig(
+                        false,
+                        5,
+                        new PluginConfig.RepeatedContentConfig(false, 4, 2, 16, 12),
+                        new PluginConfig.LongMessageConfig(false, 300, 3, 10)
+                )
         );
     }
 }

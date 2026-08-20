@@ -13,6 +13,8 @@ SimpChatCensor 是一个面向 Paper 1.21.4+ / Folia 26.1.2+ 的聊天与命令�
 - 可选 GeoIP 国家/地区登录来源拦截
 - 支持 `cancel`、`filter`、`warn`、`kick` 处理动作
 - Folia 调度兼容
+- 聊天重复消息、连续重复片段和短时间长消息刷屏检测
+- 内置中文/英文辱骂与作弊广告词库，并在升级时增量合并
 
 ## 构建
 
@@ -56,6 +58,9 @@ OP 默认拥有 `simpchatcensor.bypass`，会跳过聊天和命令内容检测�
 
 从旧版本升级时，原 `config.yml` 中的 `banned-words` 和 `ip-domain-detection.ip-whitelist`
 会在首次加载时自动合并到两个新文件中；旧的 CIDR/IP 黑名单配置会被移除。
+
+聊天刷屏规则和完整词库说明见插件首次启动生成的 `plugins/SimpChatCensor/USAGE.md`。刷屏命中会直接取消消息；
+OP 默认拥有 `simpchatcensor.bypass`，不会参与聊天内容和刷屏统计。
 
 `/bwf geoip update` 默认从 [P3TERX/GeoLite.mmdb](https://github.com/P3TERX/GeoLite.mmdb) 下载 `GeoLite2-Country.mmdb`，保存到插件数据目录并自动重载。GeoLite2 数据库由 MaxMind 提供，请遵守其许可要求。
 

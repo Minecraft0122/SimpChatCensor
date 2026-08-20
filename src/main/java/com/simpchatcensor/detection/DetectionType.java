@@ -7,7 +7,8 @@ public enum DetectionType {
     DOMAIN("domain"),
     GEOIP_COUNTRY("geoip-country"),
     FUZZY_PINYIN("fuzzy-pinyin"),
-    FUZZY_LEVENSHTEIN("fuzzy-levenshtein");
+    FUZZY_LEVENSHTEIN("fuzzy-levenshtein"),
+    SPAM("spam");
 
     private final String key;
 

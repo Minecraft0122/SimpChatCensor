@@ -26,6 +26,18 @@ class PluginMetadataTest {
         assertEquals(PluginConfig.DEFAULT_COMMAND_WHITELIST, config.getStringList("command-whitelist"));
     }
 
+    @Test
+    void shipsSpamDetectionDefaultsAndAnInitialBannedWordLibrary() throws IOException {
+        YamlConfiguration config = loadYamlResource("config.yml");
+        assertEquals(300, config.getInt("spam-detection.long-message-burst.min-length"));
+        assertEquals(3, config.getInt("spam-detection.long-message-burst.max-messages"));
+        assertEquals(1, config.getInt("spam-detection.repeated-content.min-segment-length"));
+
+        YamlConfiguration blacklist = loadYamlResource("message-blacklist.yml");
+        assertEquals(1, blacklist.getInt("library-version"));
+        assertEquals(true, blacklist.getStringList("banned-words").contains("神经病"));
+    }
+
     private YamlConfiguration loadYamlResource(String resourceName) throws IOException {
         InputStream stream = getClass().getClassLoader().getResourceAsStream(resourceName);
         assertNotNull(stream, resourceName + " must be packaged as a plugin resource");
