@@ -64,7 +64,8 @@ spam-detection:
 # 是否把违规记录通知给拥有 simpchatcensor.notify 权限的管理员。
 notify-staff: true
 
-# 是否写入 plugins/SimpChatCensor/violations.log。
+# 是否写入 plugins/SimpChatCensor/violations/YYYY-MM-DD.log。
+# 每天一个文件，记录时间、玩家 ID（游戏名）、检测类型、规则和原始内容，不记录 UUID。
 log-to-file: true
 
 # 管理员通知消息。

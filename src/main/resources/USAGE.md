@@ -16,6 +16,14 @@
 - `config.yml`：处理动作、开关、命令根白名单、提示文本、拼音/编辑距离、IP/域名和 GeoIP 设置。
 - `message-blacklist.yml`：聊天和未列入命令白名单的命令内容所使用的关键词或正则表达式。
 - `ip-whitelist.yml`：允许出现在消息或命令中的精确 IP、IPv6 或 IPv4 CIDR。
+- `violations/YYYY-MM-DD.log`：按服务器本地日期分割的违规记录。
+
+## 违规记录
+
+开启 `config.yml` 的 `log-to-file: true` 后，插件会在 `plugins/SimpChatCensor/violations/` 下按服务器本地日期写入
+`YYYY-MM-DD.log`。每行是 5 列制表符分隔内容：时间、玩家 ID（游戏名）、检测类型、规则、原始内容。
+日志只记录玩家游戏名，不记录 UUID；原始内容中的换行、回车和制表符会替换为空格，避免破坏列格式。
+旧版本根目录的 `violations.log` 不会自动迁移，也不会继续追加；需要时可手工归档或删除。
 
 ## 聊天刷屏检测
 

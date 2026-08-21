@@ -58,12 +58,16 @@ OP 默认拥有 `simpchatcensor.bypass`，会跳过聊天和命令内容检测�
 - `config.yml`：过滤选项、命令根白名单、处理动作、提示文本、域名白名单与 GeoIP 设置
 - `message-blacklist.yml`：消息违禁词/正则列表
 - `ip-whitelist.yml`：允许出现在消息或命令中的 IP；未列出的 IP 默认全部拦截
+- `violations/YYYY-MM-DD.log`：按服务器本地日期分割的违规记录；每行只记录时间、玩家 ID（游戏名）、检测类型、规则和原始内容，不记录 UUID
 
 从旧版本升级时，原 `config.yml` 中的 `banned-words` 和 `ip-domain-detection.ip-whitelist`
 会在首次加载时自动合并到两个新文件中；旧的 CIDR/IP 黑名单配置会被移除。
 
 聊天刷屏规则和完整词库说明见插件首次启动生成的 `plugins/SimpChatCensor/USAGE.md`。刷屏命中会直接取消消息；
 OP 默认拥有 `simpchatcensor.bypass`，不会参与聊天内容和刷屏统计。
+
+启用 `log-to-file` 后，违规记录写入插件目录下的 `violations` 文件夹，每天生成一个 `YYYY-MM-DD.log` 文件。
+日志中的玩家 ID 是游戏名，不写入 UUID；旧版本根目录下的 `violations.log` 不会再追加，历史文件可由服主自行归档。
 
 `/bwf geoip update` 默认从 [P3TERX/GeoLite.mmdb](https://github.com/P3TERX/GeoLite.mmdb) 下载 `GeoLite2-Country.mmdb`，保存到插件数据目录并自动重载。GeoLite2 数据库由 MaxMind 提供，请遵守其许可要求。
 

@@ -27,6 +27,8 @@ class UsageGuideTest {
             assertTrue(guide.contains("重复消息"));
             assertTrue(guide.contains("content-minimum-interval"));
             assertTrue(guide.contains("similar-message"));
+            assertTrue(guide.contains("violations/YYYY-MM-DD.log"));
+            assertTrue(guide.contains("不记录 UUID"));
         }
     }
 }
