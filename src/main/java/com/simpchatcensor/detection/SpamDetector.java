@@ -18,14 +18,16 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * Tracks short-lived per-player chat state. The state is deliberately kept
- * outside the text detector because spam rules depend on message history.
+ * Tracks short-lived per-player content state. The state is deliberately kept
+ * outside the text detector because spam and minimum-interval rules depend on
+ * player history.
  */
 public final class SpamDetector implements AutoCloseable {
     private static final int MAX_TRACKED_PLAYERS = 10_000;
     private static final int CLEANUP_INTERVAL = 256;
     private static final int MAX_REPEATED_SCAN_LENGTH = 8_192;
     private static final int MAX_EXACT_DUPLICATE_LENGTH = 16_384;
+    private static final int MAX_SIMILAR_MESSAGE_LENGTH = 4_096;
     private static final int MAX_REPEATED_COMPARISONS = 200_000;
     private static final ThreadLocal<MessageDigest> SHA256 = ThreadLocal.withInitial(() -> {
         try {
@@ -63,31 +65,87 @@ public final class SpamDetector implements AutoCloseable {
         lifecycle.readLock().lock();
         try {
             PluginConfig.SpamConfig snapshot = config;
-            if (!snapshot.enabled() || playerId == null || message == null || message.isBlank()) {
+            if (playerId == null || message == null || message.isBlank()) {
                 return Optional.empty();
             }
 
             PlayerState state = states.computeIfAbsent(playerId, ignored -> new PlayerState());
             synchronized (state) {
-                Optional<DetectionResult> duplicate = detectDuplicate(state, message, nowMillis, snapshot);
-                Optional<DetectionResult> repeated = detectRepeatedContent(message, snapshot);
-                Optional<DetectionResult> longBurst = detectLongMessageBurst(state, message, nowMillis, snapshot);
+                Optional<DetectionResult> minimumInterval = detectMinimumInterval(
+                        state,
+                        message,
+                        nowMillis,
+                        snapshot.minimumInterval().messageMillis(),
+                        "message"
+                );
+                Optional<DetectionResult> duplicate = snapshot.enabled()
+                        ? detectDuplicate(state, message, nowMillis, snapshot)
+                        : Optional.empty();
+                Optional<DetectionResult> similar = snapshot.enabled()
+                        ? detectSimilarMessage(state, message, nowMillis, snapshot.similarMessage())
+                        : Optional.empty();
+                Optional<DetectionResult> repeated = snapshot.enabled()
+                        ? detectRepeatedContent(message, snapshot)
+                        : Optional.empty();
+                Optional<DetectionResult> longBurst = snapshot.enabled()
+                        ? detectLongMessageBurst(state, message, nowMillis, snapshot)
+                        : Optional.empty();
 
                 state.lastMessage = message.length() <= MAX_EXACT_DUPLICATE_LENGTH ? message : null;
                 state.lastMessageLength = message.length();
                 state.lastMessageDigest = message.length() <= MAX_EXACT_DUPLICATE_LENGTH
                         ? new byte[0]
                         : fingerprint(message);
+                state.lastComparableMessage = comparableMessage(message);
                 state.lastMessageAt = nowMillis;
+                state.hasMessageAt = true;
                 state.lastActivityAt = nowMillis;
                 cleanupIfNeeded(nowMillis, snapshot);
+                if (minimumInterval.isPresent()) {
+                    return minimumInterval;
+                }
                 if (duplicate.isPresent()) {
                     return duplicate;
+                }
+                if (similar.isPresent()) {
+                    return similar;
                 }
                 if (repeated.isPresent()) {
                     return repeated;
                 }
                 return longBurst;
+            }
+        } finally {
+            lifecycle.readLock().unlock();
+        }
+    }
+
+    public Optional<DetectionResult> detectCommandInterval(UUID playerId, String command) {
+        return detectCommandInterval(playerId, command, System.currentTimeMillis());
+    }
+
+    /** Visible for deterministic unit tests; timestamps are epoch milliseconds. */
+    public Optional<DetectionResult> detectCommandInterval(UUID playerId, String command, long nowMillis) {
+        lifecycle.readLock().lock();
+        try {
+            PluginConfig.SpamConfig snapshot = config;
+            int minimumMillis = snapshot.minimumInterval().commandMillis();
+            if (minimumMillis <= 0 || playerId == null || command == null || command.isBlank()) {
+                return Optional.empty();
+            }
+
+            PlayerState state = states.computeIfAbsent(playerId, ignored -> new PlayerState());
+            synchronized (state) {
+                Optional<DetectionResult> result = detectMinimumInterval(
+                        state,
+                        command,
+                        nowMillis,
+                        minimumMillis,
+                        "command"
+                );
+                state.lastActivityAt = nowMillis;
+                cleanupIfNeeded(nowMillis, snapshot);
+                return result;
             }
         } finally {
             lifecycle.readLock().unlock();
@@ -137,6 +195,87 @@ public final class SpamDetector implements AutoCloseable {
             ));
         }
         return Optional.empty();
+    }
+
+    private static Optional<DetectionResult> detectMinimumInterval(
+            PlayerState state,
+            String content,
+            long nowMillis,
+            int minimumMillis,
+            String contentType
+    ) {
+        Optional<DetectionResult> result = Optional.empty();
+        if (minimumMillis > 0 && state.hasContentAt) {
+            long elapsed = nowMillis - state.lastContentAt;
+            if (elapsed >= 0 && elapsed < minimumMillis) {
+                result = Optional.of(DetectionResult.of(
+                        DetectionType.SPAM,
+                        content,
+                        contentType + "-minimum-interval",
+                        DetectionAction.CANCEL,
+                        contentType + " interval " + minimumMillis + "ms"
+                ));
+            }
+        }
+        state.lastContentAt = nowMillis;
+        state.hasContentAt = true;
+        return result;
+    }
+
+    private static Optional<DetectionResult> detectSimilarMessage(
+            PlayerState state,
+            String message,
+            long nowMillis,
+            PluginConfig.SimilarMessageConfig config
+    ) {
+        if (!config.enabled() || state.lastComparableMessage == null) {
+            return Optional.empty();
+        }
+
+        long windowMillis = config.windowSeconds() * 1000L;
+        if (!state.hasMessageAt || !elapsedWithin(state.lastMessageAt, nowMillis, windowMillis)) {
+            return Optional.empty();
+        }
+
+        String current = comparableMessage(message);
+        if (current == null || current.equals(state.lastComparableMessage)) {
+            return Optional.empty();
+        }
+
+        int commonPrefixLength = commonPrefixLength(state.lastComparableMessage, current);
+        int previousSuffixLength = state.lastComparableMessage.length() - commonPrefixLength;
+        int currentSuffixLength = current.length() - commonPrefixLength;
+        if (commonPrefixLength < config.minimumCommonPrefixLength()
+                || previousSuffixLength > config.maximumSuffixLength()
+                || currentSuffixLength > config.maximumSuffixLength()) {
+            return Optional.empty();
+        }
+
+        return Optional.of(DetectionResult.of(
+                DetectionType.SPAM,
+                message,
+                "similar-message",
+                DetectionAction.CANCEL,
+                "same prefix " + commonPrefixLength + " chars, suffixes <= "
+                        + config.maximumSuffixLength() + " chars"
+        ));
+    }
+
+    private static String comparableMessage(String message) {
+        if (message.length() > MAX_SIMILAR_MESSAGE_LENGTH) {
+            return null;
+        }
+        String comparable = TextPreprocessor.basicLower(message).strip();
+        return comparable.isEmpty() ? null : comparable;
+    }
+
+    private static int commonPrefixLength(String first, String second) {
+        int limit = Math.min(first.length(), second.length());
+        int index = 0;
+        while (index < limit && first.charAt(index) == second.charAt(index)) {
+            index++;
+        }
+        return index;
     }
 
     private static Optional<DetectionResult> detectRepeatedContent(
@@ -229,9 +368,11 @@ public final class SpamDetector implements AutoCloseable {
         }
         detectionsSinceCleanup.set(0);
         long maxAge = Math.max(
-                snapshot.duplicateWindowSeconds(),
-                snapshot.longMessageBurst().windowSeconds()
+                Math.max(snapshot.duplicateWindowSeconds(), snapshot.longMessageBurst().windowSeconds()),
+                snapshot.similarMessage().windowSeconds()
         ) * 1000L * 2L;
+        maxAge = Math.max(maxAge, snapshot.minimumInterval().messageMillis() * 2L);
+        maxAge = Math.max(maxAge, snapshot.minimumInterval().commandMillis() * 2L);
         for (var entry : states.entrySet()) {
             PlayerState state = entry.getValue();
             if (nowMillis - state.lastActivityAt > maxAge || states.size() > MAX_TRACKED_PLAYERS) {
@@ -262,7 +403,9 @@ public final class SpamDetector implements AutoCloseable {
                 false,
                 0,
                 new PluginConfig.RepeatedContentConfig(false, 0, 0, 0, 0),
-                new PluginConfig.LongMessageConfig(false, 0, 0, 0)
+                new PluginConfig.LongMessageConfig(false, 0, 0, 0),
+                new PluginConfig.MinimumIntervalConfig(0, 0),
+                new PluginConfig.SimilarMessageConfig(false, 0, 0, 0)
         );
     }
 
@@ -270,8 +413,12 @@ public final class SpamDetector implements AutoCloseable {
         private volatile String lastMessage;
         private volatile int lastMessageLength;
         private volatile byte[] lastMessageDigest = new byte[0];
+        private volatile String lastComparableMessage;
         private volatile long lastMessageAt;
+        private volatile boolean hasMessageAt;
         private volatile long lastActivityAt;
+        private volatile long lastContentAt;
+        private volatile boolean hasContentAt;
         private final Deque<Long> longMessageTimes = new ArrayDeque<>();
     }
 }

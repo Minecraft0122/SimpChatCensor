@@ -77,4 +77,19 @@ class ConfigManagerTest {
         assertEquals(3, spam.longMessageBurst().maxMessages());
         assertEquals(3600, spam.longMessageBurst().windowSeconds());
     }
+
+    @Test
+    void boundsMinimumIntervalsAndSimilarMessageSettings() {
+        YamlConfiguration source = new YamlConfiguration();
+        source.set("content-minimum-interval.message-millis", 1);
+        source.set("content-minimum-interval.command-millis", 100_000);
+        source.set("spam-detection.similar-message.minimum-common-prefix-length", 1);
+        source.set("spam-detection.similar-message.maximum-suffix-length", 100_000);
+
+        PluginConfig.SpamConfig spam = ConfigManager.loadSpamConfig(source);
+        assertEquals(800, spam.minimumInterval().messageMillis());
+        assertEquals(60_000, spam.minimumInterval().commandMillis());
+        assertEquals(12, spam.similarMessage().minimumCommonPrefixLength());
+        assertEquals(256, spam.similarMessage().maximumSuffixLength());
+    }
 }

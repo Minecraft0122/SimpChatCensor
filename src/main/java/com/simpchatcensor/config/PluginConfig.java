@@ -33,7 +33,39 @@ public record PluginConfig(
             boolean enabled,
             int duplicateWindowSeconds,
             RepeatedContentConfig repeatedContent,
-            LongMessageConfig longMessageBurst
+            LongMessageConfig longMessageBurst,
+            MinimumIntervalConfig minimumInterval,
+            SimilarMessageConfig similarMessage
+    ) {
+        /**
+         * Keeps the old constructor useful for isolated callers that do not
+         * need the new rate-limit rules.
+         */
+        public SpamConfig(
+                boolean enabled,
+                int duplicateWindowSeconds,
+                RepeatedContentConfig repeatedContent,
+                LongMessageConfig longMessageBurst
+        ) {
+            this(
+                    enabled,
+                    duplicateWindowSeconds,
+                    repeatedContent,
+                    longMessageBurst,
+                    new MinimumIntervalConfig(0, 0),
+                    new SimilarMessageConfig(false, 0, 0, 0)
+            );
+        }
+    }
+
+    public record MinimumIntervalConfig(int messageMillis, int commandMillis) {
+    }
+
+    public record SimilarMessageConfig(
+            boolean enabled,
+            int windowSeconds,
+            int minimumCommonPrefixLength,
+            int maximumSuffixLength
     ) {
     }
 

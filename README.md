@@ -13,7 +13,8 @@ SimpChatCensor 是一个面向 Paper 1.21.4+ / Folia 26.1.2+ 的聊天与命令�
 - 可选 GeoIP 国家/地区登录来源拦截
 - 支持 `cancel`、`filter`、`warn`、`kick` 处理动作
 - Folia 调度兼容
-- 聊天重复消息、连续重复片段和短时间长消息刷屏检测
+- 聊天重复消息、随机后缀相似消息、连续重复片段和短时间长消息刷屏检测
+- 可配置的聊天/命令硬性最小间隔，防止外挂通过随机字符绕过刷屏规则
 - 内置中文/英文辱骂与作弊广告词库，并在升级时增量合并
 
 ## 构建
@@ -47,7 +48,9 @@ mvn -B -ntp clean verify
 OP 默认拥有 `simpchatcensor.bypass`，会跳过聊天和命令内容检测；可通过权限插件按需显式撤销或授予。
 命令内容使用 `config.yml` 的 `command-whitelist` 精确根命令白名单处理。默认白名单为
 `bwf`、`lp`、`luckperms`，支持 Bukkit 命名空间形式，避免把 LuckPerms 权限节点误识别为域名；
-未列出的命令仍会在 `filter-commands: true` 时参与检测。
+未列出的命令在 `filter-commands: true` 时先执行硬性最小间隔限制，再参与内容检测；关闭该开关会关闭整套命令检测。
+`content-minimum-interval` 没有关闭开关，聊天与受检命令共用同一玩家活动时间；白名单命令和
+拥有 `simpchatcensor.bypass` 的玩家不受该限制。
 插件首次启动时会生成 `plugins/SimpChatCensor/USAGE.md`，其中包含完整指令、权限和 Java 正则示例。
 
 ## 配置文件

@@ -108,6 +108,61 @@ class SpamDetectorTest {
         assertEquals(DetectionType.SPAM, detector.detect(PLAYER, longMessage, 1_001).orElseThrow().type());
     }
 
+    @Test
+    void blocksMessagesThatOnlyChangeByAShortRandomSuffix() {
+        SpamDetector detector = new SpamDetector();
+        detector.reload(new PluginConfig.SpamConfig(
+                true,
+                5,
+                new PluginConfig.RepeatedContentConfig(false, 4, 2, 16, 12),
+                new PluginConfig.LongMessageConfig(false, 300, 3, 10),
+                new PluginConfig.MinimumIntervalConfig(0, 0),
+                new PluginConfig.SimilarMessageConfig(true, 8, 8, 12)
+        ));
+
+        assertTrue(detector.detect(PLAYER, "加入服务器领取奖励-A1B2", 1_000).isEmpty());
+        DetectionResult result = detector.detect(PLAYER, "加入服务器领取奖励-X9Y8", 2_000).orElseThrow();
+        assertEquals(DetectionType.SPAM, result.type());
+        assertEquals("similar-message", result.rule());
+        assertEquals(DetectionAction.CANCEL, result.action());
+    }
+
+    @Test
+    void doesNotTreatACompletelyDifferentLongTailAsARandomSuffix() {
+        SpamDetector detector = new SpamDetector();
+        detector.reload(new PluginConfig.SpamConfig(
+                true,
+                5,
+                new PluginConfig.RepeatedContentConfig(false, 4, 2, 16, 12),
+                new PluginConfig.LongMessageConfig(false, 300, 3, 10),
+                new PluginConfig.MinimumIntervalConfig(0, 0),
+                new PluginConfig.SimilarMessageConfig(true, 8, 8, 4)
+        ));
+
+        assertTrue(detector.detect(PLAYER, "请查看服务器公告并完成新手任务", 1_000).isEmpty());
+        assertTrue(detector.detect(PLAYER, "请查看服务器公告然后前往竞技场参加比赛", 2_000).isEmpty());
+    }
+
+    @Test
+    void enforcesMessageAndCommandIntervalsWithSharedPlayerActivity() {
+        SpamDetector detector = new SpamDetector();
+        detector.reload(new PluginConfig.SpamConfig(
+                false,
+                5,
+                new PluginConfig.RepeatedContentConfig(false, 4, 2, 16, 12),
+                new PluginConfig.LongMessageConfig(false, 300, 3, 10),
+                new PluginConfig.MinimumIntervalConfig(800, 250),
+                new PluginConfig.SimilarMessageConfig(false, 8, 8, 12)
+        ));
+
+        assertTrue(detector.detect(PLAYER, "first", 1_000).isEmpty());
+        assertEquals("message-minimum-interval", detector.detect(PLAYER, "second", 1_799).orElseThrow().rule());
+        assertTrue(detector.detect(PLAYER, "third", 2_599).isEmpty());
+        assertEquals("command-minimum-interval", detector.detectCommandInterval(PLAYER, "/home", 2_700).orElseThrow().rule());
+        assertEquals("command-minimum-interval", detector.detectCommandInterval(PLAYER, "/spawn", 2_800).orElseThrow().rule());
+        assertTrue(detector.detectCommandInterval(PLAYER, "/spawn", 3_050).isEmpty());
+    }
+
     private static SpamDetector detector(PluginConfig.SpamConfig config) {
         SpamDetector detector = new SpamDetector();
         detector.reload(config);

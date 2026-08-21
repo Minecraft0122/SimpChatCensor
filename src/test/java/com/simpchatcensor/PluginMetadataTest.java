@@ -32,6 +32,10 @@ class PluginMetadataTest {
         assertEquals(300, config.getInt("spam-detection.long-message-burst.min-length"));
         assertEquals(3, config.getInt("spam-detection.long-message-burst.max-messages"));
         assertEquals(1, config.getInt("spam-detection.repeated-content.min-segment-length"));
+        assertEquals(800, config.getInt("content-minimum-interval.message-millis"));
+        assertEquals(250, config.getInt("content-minimum-interval.command-millis"));
+        assertEquals(12, config.getInt("spam-detection.similar-message.minimum-common-prefix-length"));
+        assertEquals(64, config.getInt("spam-detection.similar-message.maximum-suffix-length"));
 
         YamlConfiguration blacklist = loadYamlResource("message-blacklist.yml");
         assertEquals(1, blacklist.getInt("library-version"));

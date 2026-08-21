@@ -83,7 +83,7 @@ public final class SimpChatCensorPlugin extends JavaPlugin {
                 this
         );
         getServer().getPluginManager().registerEvents(
-                new CommandListener(() -> configManager.getConfig(), bannedWordManager, actionExecutor),
+                new CommandListener(() -> configManager.getConfig(), bannedWordManager, spamDetector, actionExecutor),
                 this
         );
         getServer().getPluginManager().registerEvents(

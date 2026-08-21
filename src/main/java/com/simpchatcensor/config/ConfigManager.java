@@ -208,6 +208,16 @@ public final class ConfigManager {
                         bounded(source.getInt("spam-detection.long-message-burst.min-length", 300), 1, 100_000, 300),
                         bounded(source.getInt("spam-detection.long-message-burst.max-messages", 3), 2, 100, 3),
                         bounded(source.getInt("spam-detection.long-message-burst.window-seconds", 10), 1, 3600, 10)
+                ),
+                new PluginConfig.MinimumIntervalConfig(
+                        bounded(source.getInt("content-minimum-interval.message-millis", 800), 100, 60_000, 800),
+                        bounded(source.getInt("content-minimum-interval.command-millis", 250), 100, 60_000, 250)
+                ),
+                new PluginConfig.SimilarMessageConfig(
+                        source.getBoolean("spam-detection.similar-message.enabled", true),
+                        bounded(source.getInt("spam-detection.similar-message.window-seconds", 8), 1, 3600, 8),
+                        bounded(source.getInt("spam-detection.similar-message.minimum-common-prefix-length", 12), 4, 256, 12),
+                        bounded(source.getInt("spam-detection.similar-message.maximum-suffix-length", 64), 1, 256, 64)
                 )
         );
     }

@@ -24,8 +24,23 @@
 不受顶部 `action: filter` 或 `action: warn` 设置影响；拥有 `simpchatcensor.bypass` 的玩家不参与刷屏统计。
 
 - 同一玩家在 `duplicate-window-seconds` 内连续发送与上一条完全相同的消息，第二条会被拦截；大小写、空格或标点不同不算完全一致。
+- `similar-message` 会比较最近两条消息的规范化共同前缀。共同前缀达到 `minimum-common-prefix-length`，且两条消息在此前缀后的尾部都不超过 `maximum-suffix-length` 时会被拦截，专门处理“每条广告后追加随机字符”的绕过方式。它不是通用相似度算法，较长的正常句子不会因为只有开头相同而触发。
 - 一条消息中同一片段连续重复达到 `min-repeats`，且重复总长度达到 `min-total-length`，会被拦截。例如连续发送“神经病”多次。
 - `long-message-burst` 会统计滑动时间窗内的长消息；默认 10 秒内第 3 条长度至少 300 个 Java 字符的消息会被拦截，后续仍满足条件的长消息也会拦截。
+
+### 消息和命令最小间隔
+
+`content-minimum-interval` 是硬性限制，没有单独的 `enabled` 开关。插件按玩家记录最近一次聊天或非白名单命令的时间：
+当前事件是聊天时使用 `message-millis`，当前事件是命令时使用 `command-millis`。两类事件共用记录，不能通过“聊天、命令交替发送”绕过。
+间隔不足时当前消息/命令直接取消，并使用 `DetectionType.SPAM` 记录和通知；不受顶部 `action: filter` 或 `action: warn` 影响。
+命令根白名单中的命令，以及拥有 `simpchatcensor.bypass` 的玩家不受此限制。`filter-commands: false` 会关闭整套命令检测，聊天间隔仍然生效。
+配置数值会限制在 100 到 60000 毫秒之间。
+
+```yaml
+content-minimum-interval:
+  message-millis: 800
+  command-millis: 250
+```
 
 默认配置如下，可按服务器聊天节奏调整：
 
@@ -33,6 +48,11 @@
 spam-detection:
   enabled: true
   duplicate-window-seconds: 5
+  similar-message:
+    enabled: true
+    window-seconds: 8
+    minimum-common-prefix-length: 12
+    maximum-suffix-length: 64
   repeated-content:
     enabled: true
     min-repeats: 4

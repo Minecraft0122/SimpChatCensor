@@ -27,11 +27,26 @@ command-whitelist:
   - lp
   - luckperms
 
+# 硬性限制同一玩家连续发送受限内容的最小间隔，没有单独关闭开关。
+# 聊天和命令共用同一条活动记录，命令白名单与 simpchatcensor.bypass 不受此限制。
+# 命令间隔受 filter-commands 总开关控制；关闭该开关会关闭整套命令检测。
+content-minimum-interval:
+  # 两次聊天之间至少间隔 800 毫秒。
+  message-millis: 800
+  # 两次非白名单命令之间至少间隔 250 毫秒。
+  command-millis: 250
+
 # 聊天刷屏检测。刷屏违规始终取消当前消息，不受顶部 action 的 filter/warn 设置影响。
 spam-detection:
   enabled: true
   # 同一玩家在此时间内重复发送完全相同的上一条消息会被拦截。
   duplicate-window-seconds: 5
+  similar-message:
+    enabled: true
+    # 最近两条消息在此窗口内共享足够长的前缀、但只改变短尾部时拦截，专门防止随机后缀绕过。
+    window-seconds: 8
+    minimum-common-prefix-length: 12
+    maximum-suffix-length: 64
   repeated-content:
     enabled: true
     # 同一片段连续出现至少 4 次，且重复总长度达到 12 个 Java 字符时拦截。

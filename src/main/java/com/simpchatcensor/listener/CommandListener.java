@@ -4,6 +4,7 @@ import com.simpchatcensor.ActionExecutor;
 import com.simpchatcensor.config.PluginConfig;
 import com.simpchatcensor.detection.BannedWordManager;
 import com.simpchatcensor.detection.DetectionResult;
+import com.simpchatcensor.detection.SpamDetector;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -17,15 +18,18 @@ import java.util.function.Supplier;
 public final class CommandListener implements Listener {
     private final Supplier<PluginConfig> configSupplier;
     private final BannedWordManager bannedWordManager;
+    private final SpamDetector spamDetector;
     private final ActionExecutor actionExecutor;
 
     public CommandListener(
             Supplier<PluginConfig> configSupplier,
             BannedWordManager bannedWordManager,
+            SpamDetector spamDetector,
             ActionExecutor actionExecutor
     ) {
         this.configSupplier = configSupplier;
         this.bannedWordManager = bannedWordManager;
+        this.spamDetector = spamDetector;
         this.actionExecutor = actionExecutor;
     }
 
@@ -43,6 +47,23 @@ public final class CommandListener implements Listener {
 
         Player player = event.getPlayer();
         if (player.hasPermission("simpchatcensor.bypass")) {
+            spamDetector.clear(player.getUniqueId());
+            return;
+        }
+
+        Optional<DetectionResult> interval = spamDetector.detectCommandInterval(
+                player.getUniqueId(),
+                command
+        );
+        if (interval.isPresent()) {
+            actionExecutor.applyTextAction(
+                    player,
+                    command,
+                    interval.orElseThrow(),
+                    filtered -> event.setCancelled(true),
+                    () -> event.setCancelled(true),
+                    false
+            );
             return;
         }
 

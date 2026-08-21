@@ -25,6 +25,8 @@ class UsageGuideTest {
             assertTrue(guide.contains("只有需放行合法域名时才加入 domain-whitelist"));
             assertTrue(guide.contains("spam-detection"));
             assertTrue(guide.contains("重复消息"));
+            assertTrue(guide.contains("content-minimum-interval"));
+            assertTrue(guide.contains("similar-message"));
         }
     }
 }
