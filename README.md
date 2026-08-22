@@ -69,6 +69,16 @@ OP 默认拥有 `simpchatcensor.bypass`，不会参与聊天内容和刷屏统�
 启用 `log-to-file` 后，违规记录写入插件目录下的 `violations` 文件夹，每天生成一个 `YYYY-MM-DD.log` 文件。
 日志中的玩家 ID 是游戏名，不写入 UUID；旧版本根目录下的 `violations.log` 不会再追加，历史文件可由服主自行归档。
 
+控制台拦截记录采用简洁的三行摘要，格式与 ChatFilter 类似：
+
+```text
+------- Match Type: DOMAIN ~ CMD
+Match: cnpvp.top
+Catch > 玩家名: 原始命令或消息
+```
+
+其中 `CHAT`、`CMD`、`LOGIN` 分别表示聊天、命令和登录来源；原始内容中的换行、回车和制表符会显示为空格。
+
 `/bwf geoip update` 默认从 [P3TERX/GeoLite.mmdb](https://github.com/P3TERX/GeoLite.mmdb) 下载 `GeoLite2-Country.mmdb`，保存到插件数据目录并自动重载。GeoLite2 数据库由 MaxMind 提供，请遵守其许可要求。
 
 GeoIP 只用于玩家登录 IP 的国家/地区限制。它适合遭遇特定地区攻击、或需要国家白名单/黑名单的服务器；如果你只是要拦截聊天里的 IP/域名广告，可以保持 `geoip-enabled: false`。

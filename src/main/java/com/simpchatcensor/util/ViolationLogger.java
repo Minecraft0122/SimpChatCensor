@@ -13,6 +13,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -32,14 +33,26 @@ public final class ViolationLogger {
     }
 
     public synchronized void log(PluginConfig config, Player player, DetectionResult result, String originalText) {
-        logger.info(() -> "[SimpChatCensor] "
-                + player.getName()
-                + " triggered "
-                + result.type().key()
-                + " match="
-                + result.detectedText()
-                + " rule="
-                + result.rule());
+        log(config, player, result, originalText, "CHAT");
+    }
+
+    public synchronized void log(
+            PluginConfig config,
+            Player player,
+            DetectionResult result,
+            String originalText,
+            String source
+    ) {
+        String matchType = result.type().key().toUpperCase(Locale.ROOT);
+        String context = source == null || source.isBlank()
+                ? "CHAT"
+                : sanitize(source).trim().toUpperCase(Locale.ROOT);
+        String playerName = sanitize(player.getName());
+        String match = sanitize(result.rule());
+        String caught = sanitize(originalText);
+        logger.info("------- Match Type: " + matchType + " ~ " + context);
+        logger.info("Match: " + match);
+        logger.info("Catch > " + playerName + ": " + caught);
 
         if (!config.logToFile()) {
             return;
@@ -50,10 +63,10 @@ public final class ViolationLogger {
         Path logFile = config.dataFolder().resolve(LOG_DIRECTORY).resolve(date + ".log");
         String line = "%s\t%s\t%s\t%s\t%s%n".formatted(
                 timestamp.format(TIMESTAMP_FORMAT),
-                sanitize(player.getName()),
+                playerName,
                 sanitize(result.type().key()),
-                sanitize(result.rule()),
-                sanitize(originalText)
+                match,
+                caught
         );
 
         try {

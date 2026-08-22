@@ -62,7 +62,8 @@ public final class CommandListener implements Listener {
                     interval.orElseThrow(),
                     filtered -> event.setCancelled(true),
                     () -> event.setCancelled(true),
-                    false
+                    false,
+                    "CMD"
             );
             return;
         }
@@ -80,7 +81,8 @@ public final class CommandListener implements Listener {
                     }
                 },
                 () -> event.setCancelled(true),
-                true
+                true,
+                "CMD"
         ));
     }
 

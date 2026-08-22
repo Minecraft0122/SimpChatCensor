@@ -14,7 +14,10 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.logging.Handler;
+import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.logging.LogRecord;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -87,6 +90,41 @@ class ViolationLoggerTest {
         assertFalse(Files.exists(tempDir.resolve("violations")));
     }
 
+    @Test
+    void printsChatFilterStyleThreeLineConsoleSummary() {
+        CapturingHandler handler = new CapturingHandler();
+        Logger logger = Logger.getAnonymousLogger();
+        logger.addHandler(handler);
+        logger.setLevel(Level.INFO);
+        logger.setUseParentHandlers(false);
+
+        new ViolationLogger(
+                logger,
+                Clock.fixed(Instant.parse("2026-08-21T16:00:01Z"), SERVER_ZONE)
+        ).log(
+                config(false),
+                playerWithoutUuid("Alice"),
+                DetectionResult.of(
+                        com.simpchatcensor.detection.DetectionType.DOMAIN,
+                        "cnpvp,top",
+                        "cnpvp.top",
+                        DetectionAction.CANCEL,
+                        "domain"
+                ),
+                "say cnpvp,top\nnext",
+                "CMD"
+        );
+
+        assertEquals(
+                List.of(
+                        "------- Match Type: DOMAIN ~ CMD",
+                        "Match: cnpvp.top",
+                        "Catch > Alice: say cnpvp,top next"
+                ),
+                handler.messages
+        );
+    }
+
     private PluginConfig config(boolean logToFile) {
         return new PluginConfig(
                 DetectionAction.CANCEL,
@@ -154,5 +192,22 @@ class ViolationLoggerTest {
                     return null;
                 }
         );
+    }
+
+    private static final class CapturingHandler extends Handler {
+        private final List<String> messages = new java.util.ArrayList<>();
+
+        @Override
+        public void publish(LogRecord record) {
+            messages.add(record.getMessage());
+        }
+
+        @Override
+        public void flush() {
+        }
+
+        @Override
+        public void close() {
+        }
     }
 }

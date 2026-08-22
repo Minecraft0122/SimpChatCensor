@@ -28,7 +28,12 @@ public final class ConnectionListener implements Listener {
         }
 
         DetectionResult detectionResult = result.get();
-        actionExecutor.record(event.getPlayer(), detectionResult, event.getAddress().getHostAddress());
+        actionExecutor.record(
+                event.getPlayer(),
+                detectionResult,
+                event.getAddress().getHostAddress(),
+                "LOGIN"
+        );
         DetectionAction action = detectionResult.action();
         if (action == DetectionAction.CANCEL || action == DetectionAction.KICK || action == DetectionAction.FILTER) {
             event.disallow(

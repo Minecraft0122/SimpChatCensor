@@ -42,8 +42,20 @@ public final class ActionExecutor {
             Runnable cancel,
             boolean allowFilter
     ) {
+        return applyTextAction(player, originalText, result, replaceText, cancel, allowFilter, "CHAT");
+    }
+
+    public boolean applyTextAction(
+            Player player,
+            String originalText,
+            DetectionResult result,
+            Consumer<String> replaceText,
+            Runnable cancel,
+            boolean allowFilter,
+            String source
+    ) {
         PluginConfig config = configSupplier.get();
-        record(player, result, originalText);
+        record(player, result, originalText, source);
 
         DetectionAction action = result.action() == null ? config.defaultAction() : result.action();
         return switch (action) {
@@ -75,8 +87,12 @@ public final class ActionExecutor {
     }
 
     public void record(Player player, DetectionResult result, String originalText) {
+        record(player, result, originalText, "CHAT");
+    }
+
+    public void record(Player player, DetectionResult result, String originalText, String source) {
         PluginConfig config = configSupplier.get();
-        violationLogger.log(config, player, result, originalText);
+        violationLogger.log(config, player, result, originalText, source);
         if (!config.notifyStaff()) {
             return;
         }
