@@ -60,11 +60,20 @@ OP 默认拥有 `simpchatcensor.bypass`，会跳过聊天和命令内容检测�
 - `ip-whitelist.yml`：允许出现在消息或命令中的 IP；未列出的 IP 默认全部拦截
 - `violations/YYYY-MM-DD.log`：按服务器本地日期分割的违规记录；每行只记录时间、玩家 ID（游戏名）、检测类型、规则和原始内容，不记录 UUID
 
+`config.yml` 中的 `player-warning` 只用于违禁内容提示；刷屏、重复消息和聊天/命令发送过快时使用独立的
+`spam-warning`，避免把限速提醒显示成违禁词警告。旧配置缺少该键时，运行时会回退到
+`&e消息发送过快，请稍后再试。`。
+
 从旧版本升级时，原 `config.yml` 中的 `banned-words` 和 `ip-domain-detection.ip-whitelist`
 会在首次加载时自动合并到两个新文件中；旧的 CIDR/IP 黑名单配置会被移除。
 
 聊天刷屏规则和完整词库说明见插件首次启动生成的 `plugins/SimpChatCensor/USAGE.md`。刷屏命中会直接取消消息；
 OP 默认拥有 `simpchatcensor.bypass`，不会参与聊天内容和刷屏统计。
+
+域名检测会先规范化逗号、中文句号等混淆分隔符，再要求域名最后的后缀出现在
+`ip-domain-detection.domain-suffixes` 中；默认列表包含 `com`、`net`、`org`、`cn`、`top` 等常见后缀，
+因此 `cnpvp,top` 仍会被识别。可按服务器实际需要增加后缀，也可以填写多级后缀（例如 `co.uk`）。
+显式设置为空列表时不会命中任何域名，但 IP 检测仍然有效；域名白名单仍按精确主机及其子域名生效。
 
 启用 `log-to-file` 后，违规记录写入插件目录下的 `violations` 文件夹，每天生成一个 `YYYY-MM-DD.log` 文件。
 日志中的玩家 ID 是游戏名，不写入 UUID；旧版本根目录下的 `violations.log` 不会再追加，历史文件可由服主自行归档。

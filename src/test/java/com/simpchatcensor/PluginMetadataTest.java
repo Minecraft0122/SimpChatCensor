@@ -24,6 +24,10 @@ class PluginMetadataTest {
     void keepsTheDefaultCommandWhitelistAlignedWithTheRuntimeFallback() throws IOException {
         YamlConfiguration config = loadYamlResource("config.yml");
         assertEquals(PluginConfig.DEFAULT_COMMAND_WHITELIST, config.getStringList("command-whitelist"));
+        assertEquals(
+                PluginConfig.DEFAULT_DOMAIN_SUFFIXES,
+                config.getStringList("ip-domain-detection.domain-suffixes")
+        );
     }
 
     @Test
@@ -36,6 +40,7 @@ class PluginMetadataTest {
         assertEquals(250, config.getInt("content-minimum-interval.command-millis"));
         assertEquals(12, config.getInt("spam-detection.similar-message.minimum-common-prefix-length"));
         assertEquals(64, config.getInt("spam-detection.similar-message.maximum-suffix-length"));
+        assertEquals("&e消息发送过快，请稍后再试。", config.getString("spam-warning"));
 
         YamlConfiguration blacklist = loadYamlResource("message-blacklist.yml");
         assertEquals(1, blacklist.getInt("library-version"));

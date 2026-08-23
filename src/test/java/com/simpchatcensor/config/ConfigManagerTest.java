@@ -39,6 +39,34 @@ class ConfigManagerTest {
     }
 
     @Test
+    void usesBuiltInDomainSuffixesWhenOlderConfigsDoNotContainTheKey() {
+        assertEquals(
+                PluginConfig.DEFAULT_DOMAIN_SUFFIXES,
+                ConfigManager.resolveDomainSuffixes(false, false, List.of())
+        );
+    }
+
+    @Test
+    void normalizesConfiguredDomainSuffixesAndKeepsExplicitEmptyListsEmpty() {
+        assertEquals(
+                List.of("com", "co.uk"),
+                ConfigManager.resolveDomainSuffixes(
+                        true,
+                        true,
+                        List.of(".COM", "co。uk", "com", "", "bad_suffix")
+                )
+        );
+        assertEquals(
+                List.of("com"),
+                ConfigManager.resolveDomainSuffixes(true, true, List.of("。COM"))
+        );
+        assertEquals(
+                List.of(),
+                ConfigManager.resolveDomainSuffixes(true, true, List.of())
+        );
+    }
+
+    @Test
     void mergesBundledBannedWordsWithoutDroppingCustomEntriesOrDuplicates() {
         assertEquals(
                 List.of("Custom", "fuck", "混蛋"),

@@ -96,6 +96,7 @@ class BannedWordManagerTest {
                 "",
                 "",
                 "",
+                "",
                 new PluginConfig.PinyinConfig(pinyin, 32),
                 new PluginConfig.LevenshteinConfig(levenshtein, 1, 50),
                 new PluginConfig.IpDomainConfig(

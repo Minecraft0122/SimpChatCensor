@@ -22,11 +22,14 @@ class UsageGuideTest {
             assertTrue(guide.contains("Matcher.find()"));
             assertTrue(guide.contains("CASE_INSENSITIVE | UNICODE_CASE"));
             assertTrue(guide.contains("返回首个结果"));
-            assertTrue(guide.contains("只有需放行合法域名时才加入 domain-whitelist"));
+            assertTrue(guide.contains("只有需要放行合法域名时才加入 domain-whitelist"));
+            assertTrue(guide.contains("ip-domain-detection.domain-suffixes"));
+            assertTrue(guide.contains("cnpvp,top"));
             assertTrue(guide.contains("spam-detection"));
             assertTrue(guide.contains("重复消息"));
             assertTrue(guide.contains("content-minimum-interval"));
             assertTrue(guide.contains("similar-message"));
+            assertTrue(guide.contains("spam-warning"));
             assertTrue(guide.contains("violations/YYYY-MM-DD.log"));
             assertTrue(guide.contains("不记录 UUID"));
         }

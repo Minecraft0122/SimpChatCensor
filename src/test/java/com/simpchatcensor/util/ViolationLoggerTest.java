@@ -137,6 +137,7 @@ class ViolationLoggerTest {
                 "",
                 "",
                 "",
+                "",
                 new PluginConfig.PinyinConfig(false, 1),
                 new PluginConfig.LevenshteinConfig(false, 0, 1),
                 new PluginConfig.IpDomainConfig(

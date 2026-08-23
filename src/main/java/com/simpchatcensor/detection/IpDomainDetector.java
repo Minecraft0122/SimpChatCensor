@@ -6,9 +6,11 @@ import org.apache.commons.net.util.SubnetUtils;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -32,11 +34,13 @@ public final class IpDomainDetector {
     private final PluginConfig.IpDomainConfig config;
     private final GeoIpService geoIpService;
     private final List<SubnetUtils> cidrWhitelist;
+    private final Set<String> domainSuffixes;
 
     public IpDomainDetector(PluginConfig.IpDomainConfig config, GeoIpService geoIpService) {
         this.config = config;
         this.geoIpService = geoIpService;
         this.cidrWhitelist = compileCidrs(config.ipWhitelist());
+        this.domainSuffixes = compileDomainSuffixes(config.domainSuffixes());
     }
 
     public Optional<DetectionResult> detectInMessage(String message) {
@@ -89,6 +93,9 @@ public final class IpDomainDetector {
             while (matcher.find()) {
                 String domain = trimTrailingPunctuation(matcher.group(1));
                 String host = hostOnly(normalizeDomainCandidate(domain));
+                if (!hasAllowedDomainSuffix(host)) {
+                    continue;
+                }
                 if (isWhitelistedDomain(host)) {
                     continue;
                 }
@@ -184,6 +191,29 @@ public final class IpDomainDetector {
         return List.copyOf(compiled);
     }
 
+    private static Set<String> compileDomainSuffixes(List<String> suffixes) {
+        Set<String> compiled = new HashSet<>();
+        if (suffixes == null) {
+            return Set.of();
+        }
+        for (String suffix : suffixes) {
+            String normalized = normalizeDomainSuffix(suffix);
+            if (!normalized.isEmpty()) {
+                compiled.add(normalized);
+            }
+        }
+        return Set.copyOf(compiled);
+    }
+
+    private boolean hasAllowedDomainSuffix(String host) {
+        for (String suffix : domainSuffixes) {
+            if (host.equals(suffix) || host.endsWith("." + suffix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean mightContainIpv4(String message) {
         boolean hasDigit = false;
         boolean hasSeparator = false;
@@ -272,6 +302,47 @@ public final class IpDomainDetector {
             }
         }
         return normalized.toString();
+    }
+
+    private static String normalizeDomainSuffix(String suffix) {
+        if (suffix == null) {
+            return "";
+        }
+        String normalized = suffix.trim().toLowerCase(Locale.ROOT);
+        for (int index = 0; index < normalized.length(); index++) {
+            if (DOMAIN_SEPARATOR_CHARS.indexOf(normalized.charAt(index)) >= 0) {
+                normalized = normalized.substring(0, index) + '.' + normalized.substring(index + 1);
+            }
+        }
+        while (normalized.startsWith(".")) {
+            normalized = normalized.substring(1);
+        }
+        while (normalized.endsWith(".")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        if (normalized.isEmpty()) {
+            return "";
+        }
+        for (String label : normalized.split("\\.", -1)) {
+            if (label.isEmpty()
+                    || label.length() > 63
+                    || !isAsciiAlphaNumeric(label.charAt(0))
+                    || !isAsciiAlphaNumeric(label.charAt(label.length() - 1))) {
+                return "";
+            }
+            for (int index = 1; index < label.length() - 1; index++) {
+                char current = label.charAt(index);
+                if (!isAsciiAlphaNumeric(current) && current != '-') {
+                    return "";
+                }
+            }
+        }
+        return normalized;
+    }
+
+    private static boolean isAsciiAlphaNumeric(char value) {
+        return (value >= 'a' && value <= 'z')
+                || (value >= '0' && value <= '9');
     }
 
     private static String trimTrailingPunctuation(String value) {

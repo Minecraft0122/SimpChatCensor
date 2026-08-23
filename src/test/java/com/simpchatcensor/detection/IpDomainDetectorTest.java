@@ -50,6 +50,51 @@ class IpDomainDetectorTest {
     }
 
     @Test
+    void ignoresDomainWithUnconfiguredSuffix() {
+        IpDomainDetector detector = detector(
+                List.of(),
+                List.of(),
+                List.of("com")
+        );
+
+        assertTrue(detector.detectInMessage("ordinary example.world text").isEmpty());
+        assertEquals(
+                DetectionType.DOMAIN,
+                detector.detectInMessage("ordinary example.com text").orElseThrow().type()
+        );
+    }
+
+    @Test
+    void supportsConfiguredMultiLevelSuffix() {
+        IpDomainDetector detector = detector(
+                List.of(),
+                List.of(),
+                List.of("co.uk")
+        );
+
+        assertEquals(
+                DetectionType.DOMAIN,
+                detector.detectInMessage("join server.example.co.uk").orElseThrow().type()
+        );
+        assertTrue(detector.detectInMessage("join server.example.com").isEmpty());
+    }
+
+    @Test
+    void explicitEmptySuffixListDisablesOnlyDomainDetection() {
+        IpDomainDetector detector = detector(
+                List.of(),
+                List.of(),
+                List.of()
+        );
+
+        assertTrue(detector.detectInMessage("join server.example.com").isEmpty());
+        assertEquals(
+                DetectionType.IP_ADDRESS,
+                detector.detectInMessage("join 45.67.89.123").orElseThrow().type()
+        );
+    }
+
+    @Test
     void detectsObfuscatedIpv4() {
         IpDomainDetector detector = detector(
                 List.of(),
@@ -123,6 +168,14 @@ class IpDomainDetectorTest {
     }
 
     private static IpDomainDetector detector(List<String> ipWhitelist, List<String> domainWhitelist) {
+        return detector(ipWhitelist, domainWhitelist, PluginConfig.DEFAULT_DOMAIN_SUFFIXES);
+    }
+
+    private static IpDomainDetector detector(
+            List<String> ipWhitelist,
+            List<String> domainWhitelist,
+            List<String> domainSuffixes
+    ) {
         return new IpDomainDetector(
                 new PluginConfig.IpDomainConfig(
                         true,
@@ -136,6 +189,7 @@ class IpDomainDetectorTest {
                         List.of(),
                         ipWhitelist,
                         domainWhitelist,
+                        domainSuffixes,
                         DetectionAction.CANCEL
                 ),
                 new GeoIpService()

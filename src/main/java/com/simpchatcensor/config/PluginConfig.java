@@ -13,6 +13,7 @@ public record PluginConfig(
         boolean logToFile,
         String staffMessage,
         String playerWarning,
+        String spamWarning,
         String kickMessage,
         PinyinConfig pinyin,
         LevenshteinConfig levenshtein,
@@ -22,6 +23,15 @@ public record PluginConfig(
         SpamConfig spam
 ) {
     public static final List<String> DEFAULT_COMMAND_WHITELIST = List.of("bwf", "lp", "luckperms");
+    /**
+     * Common public domain suffixes used by the built-in detector. Servers can
+     * replace this list when their chat policy needs a narrower or broader set.
+     */
+    public static final List<String> DEFAULT_DOMAIN_SUFFIXES = List.of(
+            "com", "net", "org", "cn", "top", "xyz", "cc", "me", "tv", "io", "co",
+            "info", "biz", "app", "dev", "gg", "live", "shop", "site", "online", "vip",
+            "pro", "link", "club"
+    );
 
     public record PinyinConfig(boolean enabled, int maxCombinations) {
     }
@@ -98,7 +108,42 @@ public record PluginConfig(
             List<String> allowedCountries,
             List<String> ipWhitelist,
             List<String> domainWhitelist,
+            List<String> domainSuffixes,
             DetectionAction action
     ) {
+        /**
+         * Keeps the previous constructor source-compatible for integrations
+         * that do not provide a domain suffix policy yet.
+         */
+        public IpDomainConfig(
+                boolean enabled,
+                boolean checkIpv4,
+                boolean checkIpv6,
+                boolean checkDomains,
+                boolean geoIpEnabled,
+                String geoIpDatabase,
+                String geoIpDownloadUrl,
+                List<String> blockedCountries,
+                List<String> allowedCountries,
+                List<String> ipWhitelist,
+                List<String> domainWhitelist,
+                DetectionAction action
+        ) {
+            this(
+                    enabled,
+                    checkIpv4,
+                    checkIpv6,
+                    checkDomains,
+                    geoIpEnabled,
+                    geoIpDatabase,
+                    geoIpDownloadUrl,
+                    blockedCountries,
+                    allowedCountries,
+                    ipWhitelist,
+                    domainWhitelist,
+                    DEFAULT_DOMAIN_SUFFIXES,
+                    action
+            );
+        }
     }
 }

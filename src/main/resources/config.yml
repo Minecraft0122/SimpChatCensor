@@ -72,8 +72,11 @@ log-to-file: true
 # 可用变量: %player%, %type%, %match%, %rule%, %detail%
 staff-message: "&c[SimpChatCensor] &f%player% &7触发 &e%type%&7: &f%match%"
 
-# 玩家被拦截或警告时收到的提示。
+# 违禁关键词、正则、IP/域名等内容被拦截或警告时，玩家收到的提示。
 player-warning: "&c请不要发送违规内容。"
+
+# 刷屏或发言过快被拦截时，玩家收到的独立提示；不会复用 player-warning。
+spam-warning: "&e消息发送过快，请稍后再试。"
 
 # action 为 kick，或登录 IP/GeoIP 被拦截时使用的踢出消息。
 kick-message: "&c你因发送违规内容被移出服务器。"
@@ -109,7 +112,10 @@ ip-domain-detection:
   check-ipv6: true
   # 是否检测域名、子域名、端口和路径，例如 mc.example.com:25565。
   # 同时会识别逗号、中文标点等混淆分隔符，例如 cnpvp,top。
+  # 只有最后的域名后缀在此列表中时才会命中，用于减少普通带点文本的误判。
+  # 可写顶级后缀（com）或多级后缀（co.uk），不带前导点；显式 [] 会关闭所有域名后缀匹配。
   check-domains: true
+  domain-suffixes: ["com", "net", "org", "cn", "top", "xyz", "cc", "me", "tv", "io", "co", "info", "biz", "app", "dev", "gg", "live", "shop", "site", "online", "vip", "pro", "link", "club"]
   # 是否启用 GeoIP 国家/地区检测。
   # 这个功能只用于“玩家登录 IP 的国家/地区限制”，不是聊天内容过滤的核心。
   # 通常只有服务器遭遇特定地区攻击，或明确需要来源地白名单/黑名单时才建议开启。

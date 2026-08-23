@@ -4,6 +4,7 @@ import com.simpchatcensor.config.DetectionAction;
 import com.simpchatcensor.config.PluginConfig;
 import com.simpchatcensor.detection.BannedWordManager;
 import com.simpchatcensor.detection.DetectionResult;
+import com.simpchatcensor.detection.DetectionType;
 import com.simpchatcensor.util.ColorUtil;
 import com.simpchatcensor.util.SchedulerUtil;
 import com.simpchatcensor.util.ViolationLogger;
@@ -60,7 +61,7 @@ public final class ActionExecutor {
         DetectionAction action = result.action() == null ? config.defaultAction() : result.action();
         return switch (action) {
             case WARN -> {
-                warn(player, config);
+                warn(player, config, result);
                 yield false;
             }
             case FILTER -> {
@@ -70,7 +71,7 @@ public final class ActionExecutor {
                     yield false;
                 }
                 cancel.run();
-                warn(player, config);
+                warn(player, config, result);
                 yield true;
             }
             case KICK -> {
@@ -80,7 +81,7 @@ public final class ActionExecutor {
             }
             case CANCEL -> {
                 cancel.run();
-                warn(player, config);
+                warn(player, config, result);
                 yield true;
             }
         };
@@ -108,9 +109,19 @@ public final class ActionExecutor {
     }
 
     public void warn(Player player, PluginConfig config) {
+        warn(player, config, null);
+    }
+
+    private void warn(Player player, PluginConfig config, DetectionResult result) {
         SchedulerUtil.runForPlayer(plugin, player, () ->
-                player.sendMessage(ColorUtil.component(config.playerWarning(), Map.of()))
+                player.sendMessage(ColorUtil.component(warningTemplate(config, result), Map.of()))
         );
+    }
+
+    static String warningTemplate(PluginConfig config, DetectionResult result) {
+        return result != null && result.type() == DetectionType.SPAM
+                ? config.spamWarning()
+                : config.playerWarning();
     }
 
     public void kick(Player player, PluginConfig config) {

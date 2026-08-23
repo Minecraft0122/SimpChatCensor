@@ -53,6 +53,13 @@ public final class ConfigManager {
                     "command-whitelist must be a YAML list; no command roots will bypass content checks."
             );
         }
+        boolean domainSuffixesConfigured = source.contains("ip-domain-detection.domain-suffixes", true);
+        boolean domainSuffixesIsList = source.isList("ip-domain-detection.domain-suffixes");
+        if (domainSuffixesConfigured && !domainSuffixesIsList) {
+            plugin.getLogger().warning(
+                    "ip-domain-detection.domain-suffixes must be a YAML list; built-in suffixes will be used."
+            );
+        }
 
         this.config = new PluginConfig(
                 defaultAction,
@@ -68,6 +75,7 @@ public final class ConfigManager {
                 source.getBoolean("log-to-file", true),
                 source.getString("staff-message", "&c[SimpChatCensor] &f%player% &7触发 &e%type%&7: &f%match%"),
                 source.getString("player-warning", "&c请不要发送违规内容。"),
+                source.getString("spam-warning", "&e消息发送过快，请稍后再试。"),
                 source.getString("kick-message", "&c你因发送违规内容被移出服务器。"),
                 new PluginConfig.PinyinConfig(
                         source.getBoolean("fuzzy-pinyin.enabled", true),
@@ -93,6 +101,11 @@ public final class ConfigManager {
                         cleanList(source.getStringList("ip-domain-detection.allowed-countries")),
                         cleanList(ipWhitelist.getStringList(IP_WHITELIST_PATH)),
                         cleanList(source.getStringList("ip-domain-detection.domain-whitelist")),
+                        resolveDomainSuffixes(
+                                domainSuffixesConfigured,
+                                domainSuffixesIsList,
+                                source.getStringList("ip-domain-detection.domain-suffixes")
+                        ),
                         ipAction
                 ),
                 cleanList(messageBlacklist.getStringList(BANNED_WORDS_PATH)),
@@ -220,6 +233,25 @@ public final class ConfigManager {
                         bounded(source.getInt("spam-detection.similar-message.maximum-suffix-length", 64), 1, 256, 64)
                 )
         );
+    }
+
+    static List<String> resolveDomainSuffixes(
+            boolean configured,
+            boolean configuredAsList,
+            List<String> configuredEntries
+    ) {
+        if (!configured || !configuredAsList) {
+            return PluginConfig.DEFAULT_DOMAIN_SUFFIXES;
+        }
+
+        List<String> cleaned = new ArrayList<>();
+        for (String entry : configuredEntries) {
+            String suffix = cleanDomainSuffix(entry);
+            if (!suffix.isEmpty() && !containsIgnoreCase(cleaned, suffix)) {
+                cleaned.add(suffix);
+            }
+        }
+        return List.copyOf(cleaned);
     }
 
     private void mergeBundledBannedWords() {
@@ -437,6 +469,48 @@ public final class ConfigManager {
             root = root.substring(namespaceSeparator + 1);
         }
         return root.toLowerCase(Locale.ROOT);
+    }
+
+    private static String cleanDomainSuffix(String value) {
+        String suffix = cleanValue(value).toLowerCase(Locale.ROOT);
+        suffix = suffix
+                .replace('，', '.')
+                .replace('。', '.')
+                .replace('．', '.')
+                .replace('｡', '.')
+                .replace('﹒', '.')
+                .replace('､', '.')
+                .replace('、', '.');
+        while (suffix.startsWith(".")) {
+            suffix = suffix.substring(1);
+        }
+        while (suffix.endsWith(".")) {
+            suffix = suffix.substring(0, suffix.length() - 1);
+        }
+        if (suffix.isEmpty()) {
+            return "";
+        }
+
+        for (String label : suffix.split("\\.", -1)) {
+            if (label.isEmpty()
+                    || label.length() > 63
+                    || !isAsciiDomainCharacter(label.charAt(0))
+                    || !isAsciiDomainCharacter(label.charAt(label.length() - 1))) {
+                return "";
+            }
+            for (int index = 1; index < label.length() - 1; index++) {
+                char current = label.charAt(index);
+                if (!isAsciiDomainCharacter(current) && current != '-') {
+                    return "";
+                }
+            }
+        }
+        return suffix;
+    }
+
+    private static boolean isAsciiDomainCharacter(char value) {
+        return (value >= 'a' && value <= 'z')
+                || (value >= '0' && value <= '9');
     }
 
     private static List<String> cleanList(List<String> input) {
