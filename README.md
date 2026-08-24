@@ -36,18 +36,18 @@ mvn -B -ntp clean verify
 ## 命令
 
 ```text
-/bwf reload
-/bwf add <词/正则>
-/bwf remove <词/正则>
-/bwf list
-/bwf geoip reload
-/bwf geoip update
-/bwf whitelist add <IP/域名>
+/scc reload
+/scc add <词/正则>
+/scc remove <词/正则>
+/scc list
+/scc geoip reload
+/scc geoip update
+/scc whitelist add <IP/域名>
 ```
 
 OP 默认拥有 `simpchatcensor.bypass`，会跳过聊天和命令内容检测；可通过权限插件按需显式撤销或授予。
 命令内容使用 `config.yml` 的 `command-whitelist` 精确根命令白名单处理。默认白名单为
-`bwf`、`lp`、`luckperms`，支持 Bukkit 命名空间形式，避免把 LuckPerms 权限节点误识别为域名；
+`scc`、`lp`、`luckperms`，支持 Bukkit 命名空间形式，避免把 LuckPerms 权限节点误识别为域名；
 未列出的命令在 `filter-commands: true` 时先执行硬性最小间隔限制，再参与内容检测；关闭该开关会关闭整套命令检测。
 `content-minimum-interval` 没有关闭开关，聊天与受检命令共用同一玩家活动时间；白名单命令和
 拥有 `simpchatcensor.bypass` 的玩家不受该限制。
@@ -71,7 +71,7 @@ OP 默认拥有 `simpchatcensor.bypass`，会跳过聊天和命令内容检测�
 OP 默认拥有 `simpchatcensor.bypass`，不会参与聊天内容和刷屏统计。
 
 域名检测会先规范化逗号、中文句号等混淆分隔符，再要求域名最后的后缀出现在
-`ip-domain-detection.domain-suffixes` 中；默认列表包含 `com`、`net`、`org`、`cn`、`top` 等常见后缀，
+`ip-domain-detection.domain-suffixes` 中；默认随插件打包 IANA 根区全量后缀，因此包含 `zip`、`uk`、`hk`、`ai`、`cloud`、`tech` 和 `xn--` 国际化后缀，
 因此 `cnpvp,top` 仍会被识别。可按服务器实际需要增加后缀，也可以填写多级后缀（例如 `co.uk`）。
 显式设置为空列表时不会命中任何域名，但 IP 检测仍然有效；域名白名单仍按精确主机及其子域名生效。
 
@@ -88,7 +88,7 @@ Catch > 玩家名: 原始命令或消息
 
 其中 `CHAT`、`CMD`、`LOGIN` 分别表示聊天、命令和登录来源；原始内容中的换行、回车和制表符会显示为空格。
 
-`/bwf geoip update` 默认从 [P3TERX/GeoLite.mmdb](https://github.com/P3TERX/GeoLite.mmdb) 下载 `GeoLite2-Country.mmdb`，保存到插件数据目录并自动重载。GeoLite2 数据库由 MaxMind 提供，请遵守其许可要求。
+`/scc geoip update` 默认从 [P3TERX/GeoLite.mmdb](https://github.com/P3TERX/GeoLite.mmdb) 下载 `GeoLite2-Country.mmdb`，保存到插件数据目录并自动重载。GeoLite2 数据库由 MaxMind 提供，请遵守其许可要求。
 
 GeoIP 只用于玩家登录 IP 的国家/地区限制。它适合遭遇特定地区攻击、或需要国家白名单/黑名单的服务器；如果你只是要拦截聊天里的 IP/域名广告，可以保持 `geoip-enabled: false`。
 

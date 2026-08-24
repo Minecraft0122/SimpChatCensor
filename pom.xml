@@ -5,7 +5,7 @@
 
     <groupId>com.simpchatcensor</groupId>
     <artifactId>simp-chat-censor</artifactId>
-    <version>2.3.0</version>
+    <version>3.0.0</version>
     <packaging>jar</packaging>
 
     <name>SimpChatCensor</name>

@@ -19,11 +19,11 @@ class ConfigManagerTest {
     @Test
     void normalizesConfiguredCommandRootsWithoutWideningMatches() {
         assertEquals(
-                List.of("bwf", "lp", "luckperms"),
+                List.of("scc", "lp", "luckperms"),
                 ConfigManager.resolveCommandWhitelist(
                         true,
                         true,
-                        List.of("/BWF", "minecraft:LP", "luckperms", "lp", "", "with space", "namespace:", "one:two:three")
+                        List.of("/SCC", "minecraft:LP", "luckperms", "lp", "", "with space", "namespace:", "one:two:three")
                 )
         );
     }

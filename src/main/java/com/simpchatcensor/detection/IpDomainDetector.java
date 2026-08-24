@@ -1,6 +1,7 @@
 package com.simpchatcensor.detection;
 
 import com.simpchatcensor.config.DetectionAction;
+import com.simpchatcensor.config.DomainNormalizer;
 import com.simpchatcensor.config.PluginConfig;
 import org.apache.commons.net.util.SubnetUtils;
 
@@ -18,8 +19,11 @@ public final class IpDomainDetector {
     private static final String IPV4_OCTET = "(?:25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]?\\d)";
     private static final String IPV4_SEPARATOR_CHARS = ".,，。．｡﹒､、";
     private static final String IPV4_SEPARATOR = "\\s*[" + IPV4_SEPARATOR_CHARS + "]\\s*";
-    private static final String DOMAIN_SEPARATOR_CHARS = ".,，。．｡﹒､、";
-    private static final String DOMAIN_SEPARATOR = "[" + DOMAIN_SEPARATOR_CHARS + "]";
+    private static final String DOMAIN_SEPARATOR_CHARS = ".，。．｡﹒､、";
+    private static final String DOMAIN_COMMA_CHARS = ",，､、";
+    private static final String DOMAIN_SEPARATOR = "\\h{0,8}(?:[" + DOMAIN_SEPARATOR_CHARS
+            + "]|\\[\\h*[.．]\\])\\h{0,8}";
+    private static final String DOMAIN_LABEL = "[\\p{L}\\p{N}](?:[\\p{L}\\p{N}-]{0,61}[\\p{L}\\p{N}])?";
     private static final Pattern IPV4_PATTERN = Pattern.compile(
             "(" + IPV4_OCTET + "(?:" + IPV4_SEPARATOR + IPV4_OCTET + "){3})"
     );
@@ -27,8 +31,14 @@ public final class IpDomainDetector {
             "(?i)(?<![0-9a-f:])((?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4})(?![0-9a-f:])"
     );
     private static final Pattern DOMAIN_PATTERN = Pattern.compile(
-            "(?i)(?<![a-z0-9_-])((?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?" + DOMAIN_SEPARATOR + ")+"
-                    + "[a-z]{2,63}(?::[0-9]{1,5})?(?:/\\S*)?)(?![a-z0-9_-])"
+            "(?i)(?<![\\p{L}\\p{N}])((?:" + DOMAIN_LABEL + DOMAIN_SEPARATOR + ")+"
+                    + DOMAIN_LABEL + "(?::[0-9]{1,5})?(?:/\\S*)?"
+                    + ")(?![\\p{L}\\p{N}])"
+    );
+    private static final Pattern COMMA_DOMAIN_PATTERN = Pattern.compile(
+            "(?i)(?<![\\p{L}\\p{N}])((?:" + DOMAIN_LABEL + "[" + DOMAIN_COMMA_CHARS + "])+"
+                    + DOMAIN_LABEL + "(?::[0-9]{1,5})?(?:/\\S*)?"
+                    + ")(?![\\p{L}\\p{N}])"
     );
 
     private final PluginConfig.IpDomainConfig config;
@@ -89,24 +99,11 @@ public final class IpDomainDetector {
         }
 
         if (config.checkDomains() && mightContainDomainSeparator(message)) {
-            Matcher matcher = DOMAIN_PATTERN.matcher(message);
-            while (matcher.find()) {
-                String domain = trimTrailingPunctuation(matcher.group(1));
-                String host = hostOnly(normalizeDomainCandidate(domain));
-                if (!hasAllowedDomainSuffix(host)) {
-                    continue;
-                }
-                if (isWhitelistedDomain(host)) {
-                    continue;
-                }
-                return Optional.of(DetectionResult.of(
-                        DetectionType.DOMAIN,
-                        domain,
-                        host,
-                        action,
-                        "domain"
-                ));
+            Optional<DetectionResult> normalDomain = detectDomains(message, DOMAIN_PATTERN, action);
+            if (normalDomain.isPresent()) {
+                return normalDomain;
             }
+            return detectDomains(message, COMMA_DOMAIN_PATTERN, action);
         }
 
         return Optional.empty();
@@ -167,9 +164,12 @@ public final class IpDomainDetector {
     }
 
     private boolean isWhitelistedDomain(String host) {
-        String normalizedHost = host.toLowerCase(Locale.ROOT);
+        String normalizedHost = DomainNormalizer.canonicalizeHost(host);
+        if (normalizedHost.isEmpty()) {
+            return false;
+        }
         for (String allowed : config.domainWhitelist()) {
-            String normalizedAllowed = allowed.toLowerCase(Locale.ROOT);
+            String normalizedAllowed = DomainNormalizer.canonicalizeHost(allowed);
             if (normalizedHost.equals(normalizedAllowed) || normalizedHost.endsWith("." + normalizedAllowed)) {
                 return true;
             }
@@ -214,6 +214,49 @@ public final class IpDomainDetector {
         return false;
     }
 
+    private Optional<DetectionResult> detectDomains(
+            String message,
+            Pattern pattern,
+            DetectionAction action
+    ) {
+        Matcher matcher = pattern.matcher(message);
+        while (matcher.find()) {
+            String domain = trimTrailingPunctuation(matcher.group(1));
+            if (hasEmbeddedWordPunctuation(message, matcher.start(1), matcher.end(1))) {
+                continue;
+            }
+            String normalizedCandidate = normalizeDomainCandidate(domain);
+            String host = DomainNormalizer.canonicalizeHost(hostOnly(normalizedCandidate));
+            if (host.isEmpty()) {
+                continue;
+            }
+            if (!hasAllowedDomainSuffix(host) || isWhitelistedDomain(host)) {
+                continue;
+            }
+            return Optional.of(DetectionResult.of(
+                    DetectionType.DOMAIN,
+                    domain,
+                    host,
+                    action,
+                    "domain"
+            ));
+        }
+        return Optional.empty();
+    }
+
+    private static boolean hasEmbeddedWordPunctuation(String message, int start, int end) {
+        if (start > 0 && isWordPunctuation(message.charAt(start - 1))
+                && start > 1 && Character.isLetterOrDigit(message.charAt(start - 2))) {
+            return true;
+        }
+        return end < message.length() && isWordPunctuation(message.charAt(end))
+                && end + 1 < message.length() && Character.isLetterOrDigit(message.charAt(end + 1));
+    }
+
+    private static boolean isWordPunctuation(char value) {
+        return value == '_' || value == '-';
+    }
+
     private static boolean mightContainIpv4(String message) {
         boolean hasDigit = false;
         boolean hasSeparator = false;
@@ -230,7 +273,7 @@ public final class IpDomainDetector {
 
     private static boolean mightContainDomainSeparator(String message) {
         for (int i = 0; i < message.length(); i++) {
-            if (DOMAIN_SEPARATOR_CHARS.indexOf(message.charAt(i)) >= 0) {
+            if (DOMAIN_SEPARATOR_CHARS.indexOf(message.charAt(i)) >= 0 || message.charAt(i) == ',') {
                 return true;
             }
         }
@@ -292,57 +335,13 @@ public final class IpDomainDetector {
             authorityEnd = candidate.length();
         }
 
-        StringBuilder normalized = new StringBuilder(candidate.length());
-        for (int i = 0; i < candidate.length(); i++) {
-            char current = candidate.charAt(i);
-            if (i < authorityEnd && DOMAIN_SEPARATOR_CHARS.indexOf(current) >= 0) {
-                normalized.append('.');
-            } else {
-                normalized.append(current);
-            }
-        }
-        return normalized.toString();
+        String authority = candidate.substring(0, authorityEnd);
+        String path = candidate.substring(authorityEnd);
+        return DomainNormalizer.normalizeSeparators(authority) + path;
     }
 
     private static String normalizeDomainSuffix(String suffix) {
-        if (suffix == null) {
-            return "";
-        }
-        String normalized = suffix.trim().toLowerCase(Locale.ROOT);
-        for (int index = 0; index < normalized.length(); index++) {
-            if (DOMAIN_SEPARATOR_CHARS.indexOf(normalized.charAt(index)) >= 0) {
-                normalized = normalized.substring(0, index) + '.' + normalized.substring(index + 1);
-            }
-        }
-        while (normalized.startsWith(".")) {
-            normalized = normalized.substring(1);
-        }
-        while (normalized.endsWith(".")) {
-            normalized = normalized.substring(0, normalized.length() - 1);
-        }
-        if (normalized.isEmpty()) {
-            return "";
-        }
-        for (String label : normalized.split("\\.", -1)) {
-            if (label.isEmpty()
-                    || label.length() > 63
-                    || !isAsciiAlphaNumeric(label.charAt(0))
-                    || !isAsciiAlphaNumeric(label.charAt(label.length() - 1))) {
-                return "";
-            }
-            for (int index = 1; index < label.length() - 1; index++) {
-                char current = label.charAt(index);
-                if (!isAsciiAlphaNumeric(current) && current != '-') {
-                    return "";
-                }
-            }
-        }
-        return normalized;
-    }
-
-    private static boolean isAsciiAlphaNumeric(char value) {
-        return (value >= 'a' && value <= 'z')
-                || (value >= '0' && value <= '9');
+        return DomainNormalizer.canonicalizeHost(suffix);
     }
 
     private static String trimTrailingPunctuation(String value) {

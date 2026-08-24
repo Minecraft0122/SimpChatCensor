@@ -18,11 +18,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public final class BwfCommand implements CommandExecutor, TabCompleter {
+public final class SccCommand implements CommandExecutor, TabCompleter {
     private final SimpChatCensorPlugin plugin;
     private final AtomicBoolean geoIpUpdateRunning = new AtomicBoolean();
 
-    public BwfCommand(SimpChatCensorPlugin plugin) {
+    public SccCommand(SimpChatCensorPlugin plugin) {
         this.plugin = plugin;
     }
 

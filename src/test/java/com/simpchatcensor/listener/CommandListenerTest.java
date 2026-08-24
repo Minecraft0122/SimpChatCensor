@@ -12,15 +12,15 @@ class CommandListenerTest {
     @Test
     void skipsConfiguredCommandsBeforeCensoringArguments() {
         assertTrue(CommandListener.isWhitelistedCommand(
-                "/bwf whitelist add simpmc.org",
+                "/scc whitelist add simpmc.org",
                 PluginConfig.DEFAULT_COMMAND_WHITELIST
         ));
         assertTrue(CommandListener.isWhitelistedCommand(
-                "/BWF add 1,1,1,1",
+                "/SCC add 1,1,1,1",
                 PluginConfig.DEFAULT_COMMAND_WHITELIST
         ));
         assertTrue(CommandListener.isWhitelistedCommand(
-                "/simpchatcensor:bwf whitelist add simpmc.org",
+                "/simpchatcensor:scc whitelist add simpmc.org",
                 PluginConfig.DEFAULT_COMMAND_WHITELIST
         ));
     }
@@ -43,14 +43,15 @@ class CommandListenerTest {
 
     @Test
     void keepsCommandsOutsideTheWhitelistCensorable() {
-        List<String> whitelist = List.of("bwf", "lp", "luckperms", "mail");
+        List<String> whitelist = List.of("scc", "lp", "luckperms", "mail");
         assertTrue(CommandListener.isWhitelistedCommand("/mail send Steve cnpvp.top", whitelist));
         assertFalse(CommandListener.isWhitelistedCommand("/msg player simpmc.org", whitelist));
         assertFalse(CommandListener.isWhitelistedCommand("bwf whitelist add simpmc.org", whitelist));
-        assertFalse(CommandListener.isWhitelistedCommand("/bwfextra whitelist add simpmc.org", whitelist));
+        assertFalse(CommandListener.isWhitelistedCommand("/sccextra whitelist add simpmc.org", whitelist));
+        assertFalse(CommandListener.isWhitelistedCommand("/bwf whitelist add simpmc.org", whitelist));
         assertFalse(CommandListener.isWhitelistedCommand("/lpa user Steve permission set example.node true", whitelist));
         assertFalse(CommandListener.isWhitelistedCommand("/luckpermsx user Steve permission set example.node true", whitelist));
         assertFalse(CommandListener.isWhitelistedCommand("/mailbox Steve cnpvp.top", whitelist));
-        assertFalse(CommandListener.isWhitelistedCommand("/bwf whitelist add simpmc.org", List.of("bwf*")));
+        assertFalse(CommandListener.isWhitelistedCommand("/scc whitelist add simpmc.org", List.of("scc*")));
     }
 }

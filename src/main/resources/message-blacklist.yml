@@ -1,5 +1,8 @@
 # 消息黑名单。
-# use-regex 为 false 时是普通关键词；为 true 时每一项都会作为正则表达式编译。
+# use-regex 为 false 时是普通关键词；为 true 时每一项都会作为 Java 正则表达式编译。
+# 正则示例：'(?<![A-Za-z0-9_])bad(?![A-Za-z0-9_])' 只匹配独立的 bad；
+# '(?:qq|vx|微信)\s*[:：]?\s*[1-9]\d{4,11}' 匹配 QQ/VX/微信号及其数字。
+# 推荐使用 YAML 单引号保留反斜杠；无效正则会在重载时记录警告并跳过。
 # library-version 用于把新增的内置词库合并到旧服务器，服主自定义条目会保留。
 library-version: 1
 banned-words:

@@ -15,10 +15,14 @@ class UsageGuideTest {
         try (InputStream stream = getClass().getClassLoader().getResourceAsStream("USAGE.md")) {
             assertNotNull(stream, "USAGE.md must be packaged as a plugin resource");
             String guide = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-            assertTrue(guide.contains("/bwf geoip update"));
+            assertTrue(guide.contains("/scc geoip update"));
             assertTrue(guide.contains("simpchatcensor.bypass"));
             assertTrue(guide.contains("command-whitelist"));
             assertTrue(guide.contains("use-regex: true"));
+            assertTrue(guide.contains("(?<![A-Za-z0-9_])bad"));
+            assertTrue(guide.contains("`zip`"));
+            assertTrue(guide.contains("`uk`"));
+            assertTrue(guide.contains("`hk`"));
             assertTrue(guide.contains("Matcher.find()"));
             assertTrue(guide.contains("CASE_INSENSITIVE | UNICODE_CASE"));
             assertTrue(guide.contains("返回首个结果"));

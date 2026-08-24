@@ -1,6 +1,6 @@
 package com.simpchatcensor;
 
-import com.simpchatcensor.command.BwfCommand;
+import com.simpchatcensor.command.SccCommand;
 import com.simpchatcensor.config.ConfigManager;
 import com.simpchatcensor.detection.BannedWordManager;
 import com.simpchatcensor.detection.SpamDetector;
@@ -97,12 +97,12 @@ public final class SimpChatCensorPlugin extends JavaPlugin {
     }
 
     private void registerCommands() {
-        PluginCommand command = getCommand("bwf");
+        PluginCommand command = getCommand("scc");
         if (command == null) {
-            getLogger().warning("Command /bwf is not defined in plugin.yml.");
+            getLogger().warning("Command /scc is not defined in plugin.yml.");
             return;
         }
-        BwfCommand executor = new BwfCommand(this);
+        SccCommand executor = new SccCommand(this);
         command.setExecutor(executor);
         command.setTabCompleter(executor);
     }

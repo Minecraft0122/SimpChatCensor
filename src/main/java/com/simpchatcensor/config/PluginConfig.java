@@ -1,7 +1,14 @@
 package com.simpchatcensor.config;
 
 import java.nio.file.Path;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public record PluginConfig(
         DetectionAction defaultAction,
@@ -22,16 +29,39 @@ public record PluginConfig(
         Path dataFolder,
         SpamConfig spam
 ) {
-    public static final List<String> DEFAULT_COMMAND_WHITELIST = List.of("bwf", "lp", "luckperms");
+    public static final List<String> DEFAULT_COMMAND_WHITELIST = List.of("scc", "lp", "luckperms");
     /**
-     * Common public domain suffixes used by the built-in detector. Servers can
-     * replace this list when their chat policy needs a narrower or broader set.
+     * IANA root-zone suffixes bundled with the plugin. The list is loaded once
+     * at startup/reload and remains immutable for chat-thread scans.
      */
-    public static final List<String> DEFAULT_DOMAIN_SUFFIXES = List.of(
-            "com", "net", "org", "cn", "top", "xyz", "cc", "me", "tv", "io", "co",
-            "info", "biz", "app", "dev", "gg", "live", "shop", "site", "online", "vip",
-            "pro", "link", "club"
-    );
+    public static final List<String> DEFAULT_DOMAIN_SUFFIXES = loadDefaultDomainSuffixes();
+
+    private static List<String> loadDefaultDomainSuffixes() {
+        List<String> suffixes = new ArrayList<>();
+        try (InputStream stream = PluginConfig.class.getClassLoader().getResourceAsStream("domain-suffixes.txt")) {
+            if (stream != null) {
+                try (BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        String suffix = line.trim().toLowerCase(Locale.ROOT);
+                        if (!suffix.isEmpty() && !suffix.startsWith("#") && !suffixes.contains(suffix)) {
+                            suffixes.add(suffix);
+                        }
+                    }
+                }
+            }
+        } catch (IOException ignored) {
+            // The fallback keeps the detector useful if a malformed jar omits the snapshot.
+        }
+        if (suffixes.isEmpty()) {
+            suffixes.addAll(List.of(
+                    "com", "net", "org", "cn", "uk", "hk", "zip", "ai", "cloud", "tech",
+                    "top", "xyz", "cc", "me", "tv", "io", "co", "info", "biz", "app", "dev"
+            ));
+        }
+        return List.copyOf(suffixes);
+    }
 
     public record PinyinConfig(boolean enabled, int maxCombinations) {
     }

@@ -100,7 +100,7 @@ public final class ConfigManager {
                         cleanList(source.getStringList("ip-domain-detection.blocked-countries")),
                         cleanList(source.getStringList("ip-domain-detection.allowed-countries")),
                         cleanList(ipWhitelist.getStringList(IP_WHITELIST_PATH)),
-                        cleanList(source.getStringList("ip-domain-detection.domain-whitelist")),
+                        cleanDomainWhitelist(source.getStringList("ip-domain-detection.domain-whitelist")),
                         resolveDomainSuffixes(
                                 domainSuffixesConfigured,
                                 domainSuffixesIsList,
@@ -162,6 +162,12 @@ public final class ConfigManager {
         }
 
         boolean isIp = isIpEntry(cleaned);
+        if (!isIp) {
+            cleaned = DomainNormalizer.canonicalizeHost(cleaned);
+            if (cleaned.isEmpty()) {
+                return false;
+            }
+        }
         FileConfiguration target = isIp ? ipWhitelist : plugin.getConfig();
         String path = isIp ? IP_WHITELIST_PATH : "ip-domain-detection.domain-whitelist";
         List<String> values = new ArrayList<>(target.getStringList(path));
@@ -472,45 +478,18 @@ public final class ConfigManager {
     }
 
     private static String cleanDomainSuffix(String value) {
-        String suffix = cleanValue(value).toLowerCase(Locale.ROOT);
-        suffix = suffix
-                .replace('，', '.')
-                .replace('。', '.')
-                .replace('．', '.')
-                .replace('｡', '.')
-                .replace('﹒', '.')
-                .replace('､', '.')
-                .replace('、', '.');
-        while (suffix.startsWith(".")) {
-            suffix = suffix.substring(1);
-        }
-        while (suffix.endsWith(".")) {
-            suffix = suffix.substring(0, suffix.length() - 1);
-        }
-        if (suffix.isEmpty()) {
-            return "";
-        }
-
-        for (String label : suffix.split("\\.", -1)) {
-            if (label.isEmpty()
-                    || label.length() > 63
-                    || !isAsciiDomainCharacter(label.charAt(0))
-                    || !isAsciiDomainCharacter(label.charAt(label.length() - 1))) {
-                return "";
-            }
-            for (int index = 1; index < label.length() - 1; index++) {
-                char current = label.charAt(index);
-                if (!isAsciiDomainCharacter(current) && current != '-') {
-                    return "";
-                }
-            }
-        }
-        return suffix;
+        return DomainNormalizer.canonicalizeHost(value);
     }
 
-    private static boolean isAsciiDomainCharacter(char value) {
-        return (value >= 'a' && value <= 'z')
-                || (value >= '0' && value <= '9');
+    private static List<String> cleanDomainWhitelist(List<String> input) {
+        List<String> cleaned = new ArrayList<>();
+        for (String value : input) {
+            String normalized = DomainNormalizer.canonicalizeHost(value);
+            if (!normalized.isEmpty() && !cleaned.contains(normalized)) {
+                cleaned.add(normalized);
+            }
+        }
+        return List.copyOf(cleaned);
     }
 
     private static List<String> cleanList(List<String> input) {
