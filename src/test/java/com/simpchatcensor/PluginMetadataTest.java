@@ -10,6 +10,7 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
@@ -45,6 +46,7 @@ class PluginMetadataTest {
         YamlConfiguration blacklist = loadYamlResource("message-blacklist.yml");
         assertEquals(1, blacklist.getInt("library-version"));
         assertEquals(true, blacklist.getStringList("banned-words").contains("神经病"));
+        assertFalse(blacklist.getStringList("banned-words").contains("开挂"));
     }
 
     private YamlConfiguration loadYamlResource(String resourceName) throws IOException {

@@ -64,6 +64,9 @@ OP 默认拥有 `simpchatcensor.bypass`，会跳过聊天和命令内容检测�
 `spam-warning`，避免把限速提醒显示成违禁词警告。旧配置缺少该键时，运行时会回退到
 `&e消息发送过快，请稍后再试。`。
 
+“开挂”不是内置违禁词。升级时会保留服主自己的黑名单条目；如果旧的 `message-blacklist.yml` 中仍有这条，
+请执行 `/scc remove 开挂`，或直接编辑文件后执行 `/scc reload`。
+
 从旧版本升级时，原 `config.yml` 中的 `banned-words` 和 `ip-domain-detection.ip-whitelist`
 会在首次加载时自动合并到两个新文件中；旧的 CIDR/IP 黑名单配置会被移除。
 
@@ -92,4 +95,5 @@ Catch > 玩家名: 原始命令或消息
 
 GeoIP 只用于玩家登录 IP 的国家/地区限制。它适合遭遇特定地区攻击、或需要国家白名单/黑名单的服务器；如果你只是要拦截聊天里的 IP/域名广告，可以保持 `geoip-enabled: false`。
 
-拼音模糊匹配默认开启。旧版本已经生成过配置文件的服务器，需要确认 `fuzzy-pinyin.enabled` 是 `true`。
+拼音模糊匹配默认开启，并按连续文字词段完整匹配，避免“干嘛的”因包含“妈的”的拼音而误报。
+旧版本已经生成过配置文件的服务器，需要确认 `fuzzy-pinyin.enabled` 是 `true`。

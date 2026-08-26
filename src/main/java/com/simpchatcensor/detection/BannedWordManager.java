@@ -155,19 +155,25 @@ public final class BannedWordManager implements AutoCloseable {
             return Optional.empty();
         }
 
-        Set<String> messagePinyin = pinyinConverter.combinations(message, snapshot.pinyin().maxCombinations());
-        for (String messageVariant : messagePinyin) {
-            for (Map.Entry<String, Set<String>> entry : pinyinIndex.entrySet()) {
-                if (messageVariant.contains(entry.getKey())) {
-                    String original = entry.getValue().stream().findFirst().orElse(entry.getKey());
-                    return Optional.of(DetectionResult.of(
-                            DetectionType.FUZZY_PINYIN,
-                            original,
-                            original,
-                            snapshot.defaultAction(),
-                            entry.getKey()
-                    ));
+        // Match each contiguous text token as a whole. Searching one flattened
+        // pinyin string with contains() lets a longer phrase such as "干嘛的"
+        // (ganmade) trigger the suffix rule "妈的" (made).
+        for (String token : TextPreprocessor.tokens(message, false)) {
+            Set<String> tokenPinyin = pinyinConverter.combinations(token, snapshot.pinyin().maxCombinations());
+            for (String variant : tokenPinyin) {
+                Set<String> originals = pinyinIndex.get(variant);
+                if (originals == null || originals.isEmpty()) {
+                    continue;
                 }
+
+                String original = originals.iterator().next();
+                return Optional.of(DetectionResult.of(
+                        DetectionType.FUZZY_PINYIN,
+                        token,
+                        original,
+                        snapshot.defaultAction(),
+                        variant
+                ));
             }
         }
         return Optional.empty();

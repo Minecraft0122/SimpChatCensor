@@ -49,6 +49,24 @@ class BannedWordManagerTest {
     }
 
     @Test
+    void doesNotMatchPinyinBannedWordsInsideALongerChineseToken() {
+        BannedWordManager manager = new BannedWordManager(Logger.getAnonymousLogger());
+        manager.reload(config(
+                true,
+                true,
+                false,
+                List.of("妈的"),
+                tempDir
+        ));
+
+        assertTrue(manager.scan("干嘛的").isEmpty());
+        DetectionResult result = manager.scan("嘛的").orElseThrow();
+        assertEquals(DetectionType.FUZZY_PINYIN, result.type());
+        assertEquals("嘛的", result.detectedText());
+        assertEquals("妈的", result.rule());
+    }
+
+    @Test
     void detectsRegexInRawMessageWithoutMatchingAContainingWord() {
         BannedWordManager manager = new BannedWordManager(Logger.getAnonymousLogger());
         manager.reload(config(
