@@ -93,7 +93,7 @@ public final class ActionExecutor {
 
     public void record(Player player, DetectionResult result, String originalText, String source) {
         PluginConfig config = configSupplier.get();
-        violationLogger.log(config, player, result, originalText, source);
+        violationLogger.logAsync(config, player, result, originalText, source);
         if (!config.notifyStaff()) {
             return;
         }

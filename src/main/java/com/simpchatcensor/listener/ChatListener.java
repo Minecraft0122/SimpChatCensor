@@ -40,7 +40,8 @@ public final class ChatListener implements Listener {
         }
 
         String message = PLAIN_TEXT.serialize(event.message());
-        Optional<DetectionResult> spamResult = spamDetector.inspect(player.getUniqueId(), message);
+        SpamDetector.ChatInspection chatInspection = spamDetector.inspectChat(player.getUniqueId(), message);
+        Optional<DetectionResult> spamResult = chatInspection.result();
         if (spamResult.isPresent()) {
             actionExecutor.applyTextAction(
                     player,
@@ -71,7 +72,7 @@ public final class ChatListener implements Listener {
 
         // Re-check atomically after content actions. A concurrent message from
         // the same player may have committed history during the content scan.
-        spamDetector.detect(player.getUniqueId(), message)
+        spamDetector.detectAfterInspection(player.getUniqueId(), message, chatInspection)
                 .ifPresent(detectionResult -> actionExecutor.applyTextAction(
                         player,
                         message,

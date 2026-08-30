@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class IpDomainDetectorTest {
@@ -219,6 +220,14 @@ class IpDomainDetectorTest {
         assertTrue(detector.detectInMessage("foo_bar.example.com").isEmpty());
         assertTrue(detector.detectInMessage("foo..com").isEmpty());
         assertTrue(detector.detectInMessage("example.invalid").isEmpty());
+    }
+
+    @Test
+    void ignoresAnUnboundedDomainLikeInputWithoutStackOverflowing() {
+        IpDomainDetector detector = detector(List.of(), List.of());
+        String longCandidate = "a.".repeat(1_000) + "com";
+
+        assertDoesNotThrow(() -> detector.detectInMessage(longCandidate));
     }
 
     @Test

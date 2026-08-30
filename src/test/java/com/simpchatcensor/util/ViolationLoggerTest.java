@@ -45,12 +45,15 @@ class ViolationLoggerTest {
                 Logger.getAnonymousLogger(),
                 Clock.fixed(Instant.parse("2026-08-21T15:59:59Z"), SERVER_ZONE)
         );
-        beforeMidnight.log(config, player, result, "line\tone\nline2");
-        beforeMidnight.log(config, player, result, "same-day");
-        new ViolationLogger(
+        beforeMidnight.logAsync(config, player, result, "line\tone\nline2");
+        beforeMidnight.logAsync(config, player, result, "same-day");
+        ViolationLogger afterMidnight = new ViolationLogger(
                 Logger.getAnonymousLogger(),
                 Clock.fixed(Instant.parse("2026-08-21T16:00:01Z"), SERVER_ZONE)
-        ).log(config, player, result, "next");
+        );
+        afterMidnight.logAsync(config, player, result, "next");
+        beforeMidnight.close();
+        afterMidnight.close();
 
         Path first = tempDir.resolve("violations/2026-08-21.log");
         Path second = tempDir.resolve("violations/2026-08-22.log");
@@ -71,10 +74,11 @@ class ViolationLoggerTest {
 
     @Test
     void doesNotCreateViolationDirectoryWhenFileLoggingIsDisabled() {
-        new ViolationLogger(
+        ViolationLogger logger = new ViolationLogger(
                 Logger.getAnonymousLogger(),
                 Clock.fixed(Instant.parse("2026-08-21T16:00:01Z"), SERVER_ZONE)
-        ).log(
+        );
+        logger.logAsync(
                 config(false),
                 playerWithoutUuid("Alice"),
                 DetectionResult.of(
@@ -86,6 +90,7 @@ class ViolationLoggerTest {
                 ),
                 "bad"
         );
+        logger.close();
 
         assertFalse(Files.exists(tempDir.resolve("violations")));
     }
@@ -98,10 +103,11 @@ class ViolationLoggerTest {
         logger.setLevel(Level.INFO);
         logger.setUseParentHandlers(false);
 
-        new ViolationLogger(
+        ViolationLogger violationLogger = new ViolationLogger(
                 logger,
                 Clock.fixed(Instant.parse("2026-08-21T16:00:01Z"), SERVER_ZONE)
-        ).log(
+        );
+        violationLogger.logAsync(
                 config(false),
                 playerWithoutUuid("Alice"),
                 DetectionResult.of(
@@ -114,6 +120,7 @@ class ViolationLoggerTest {
                 "say cnpvp,top\nnext",
                 "CMD"
         );
+        violationLogger.close();
 
         assertEquals(
                 List.of(

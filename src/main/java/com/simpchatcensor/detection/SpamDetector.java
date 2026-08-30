@@ -9,11 +9,13 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Deque;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -39,6 +41,7 @@ public final class SpamDetector implements AutoCloseable {
     private final ConcurrentMap<UUID, PlayerState> states = new ConcurrentHashMap<>();
     private final ReadWriteLock lifecycle = new ReentrantReadWriteLock();
     private final AtomicInteger detectionsSinceCleanup = new AtomicInteger();
+    private final AtomicLong configVersion = new AtomicLong();
     private volatile PluginConfig.SpamConfig config = disabledConfig();
 
     public void reload(PluginConfig newConfig) {
@@ -49,6 +52,7 @@ public final class SpamDetector implements AutoCloseable {
         lifecycle.writeLock().lock();
         try {
             config = newConfig;
+            configVersion.incrementAndGet();
             states.clear();
             detectionsSinceCleanup.set(0);
         } finally {
@@ -66,29 +70,43 @@ public final class SpamDetector implements AutoCloseable {
      * may still perform periodic stale-state cleanup.
      */
     public Optional<DetectionResult> inspect(UUID playerId, String message) {
-        return inspect(playerId, message, System.currentTimeMillis());
+        return inspectChat(playerId, message).result();
     }
 
     /** Visible for deterministic unit tests; timestamps are epoch milliseconds. */
     public Optional<DetectionResult> inspect(UUID playerId, String message, long nowMillis) {
+        return inspectChat(playerId, message, nowMillis).result();
+    }
+
+    /**
+     * Performs the first chat check and returns the configuration version used
+     * for stateless rules. The listener can reuse that result during its final
+     * atomic commit instead of scanning the same message twice.
+     */
+    public ChatInspection inspectChat(UUID playerId, String message) {
+        return inspectChat(playerId, message, System.currentTimeMillis());
+    }
+
+    /** Visible for deterministic unit tests; timestamps are epoch milliseconds. */
+    public ChatInspection inspectChat(UUID playerId, String message, long nowMillis) {
         lifecycle.readLock().lock();
         try {
             PluginConfig.SpamConfig snapshot = config;
             if (playerId == null || message == null || message.isBlank()) {
-                return Optional.empty();
+                return new ChatInspection(playerId, message, Optional.empty(), configVersion.get());
             }
 
             PlayerState state = states.get(playerId);
             if (state == null) {
                 Optional<DetectionResult> result = detectChat(new PlayerState(), message, nowMillis, snapshot);
                 cleanupIfNeeded(nowMillis, snapshot);
-                return result;
+                return new ChatInspection(playerId, message, result, configVersion.get());
             }
 
             synchronized (state) {
                 Optional<DetectionResult> result = detectChat(state, message, nowMillis, snapshot);
                 cleanupIfNeeded(nowMillis, snapshot);
-                return result;
+                return new ChatInspection(playerId, message, result, configVersion.get());
             }
         } finally {
             lifecycle.readLock().unlock();
@@ -102,6 +120,49 @@ public final class SpamDetector implements AutoCloseable {
      * unit tests.
      */
     public Optional<DetectionResult> detect(UUID playerId, String message, long nowMillis) {
+        return detectInternal(playerId, message, nowMillis, null);
+    }
+
+    /**
+     * Rechecks stateful rules and commits an accepted message. When the
+     * inspection used the current configuration, the stateless repeated
+     * content rule is safely reused instead of recalculated.
+     */
+    public Optional<DetectionResult> detectAfterInspection(
+            UUID playerId,
+            String message,
+            ChatInspection inspection
+    ) {
+        return detectAfterInspection(playerId, message, inspection, System.currentTimeMillis());
+    }
+
+    /** Visible for deterministic unit tests; timestamps are epoch milliseconds. */
+    public Optional<DetectionResult> detectAfterInspection(
+            UUID playerId,
+            String message,
+            ChatInspection inspection,
+            long nowMillis
+    ) {
+        if (inspection != null
+                && inspection.result().isPresent()
+                && Objects.equals(playerId, inspection.playerId())
+                && Objects.equals(message, inspection.message())) {
+            return inspection.result();
+        }
+        return detectInternal(
+                playerId,
+                message,
+                nowMillis,
+                inspection
+        );
+    }
+
+    private Optional<DetectionResult> detectInternal(
+            UUID playerId,
+            String message,
+            long nowMillis,
+            ChatInspection inspection
+    ) {
         lifecycle.readLock().lock();
         try {
             PluginConfig.SpamConfig snapshot = config;
@@ -111,15 +172,31 @@ public final class SpamDetector implements AutoCloseable {
 
             PlayerState state = states.computeIfAbsent(playerId, ignored -> new PlayerState());
             synchronized (state) {
-                Optional<DetectionResult> result = detectChat(state, message, nowMillis, snapshot);
+                boolean inspectionCanBeReused = inspection != null
+                        && Objects.equals(playerId, inspection.playerId())
+                        && Objects.equals(message, inspection.message())
+                        && inspection.configVersion() == configVersion.get();
+                Optional<DetectionResult> result = detectChat(
+                        state,
+                        message,
+                        nowMillis,
+                        snapshot,
+                        !inspectionCanBeReused
+                );
                 if (result.isPresent()) {
                     // Rejected messages do not update activity/history, but
                     // they still participate in periodic stale-state cleanup.
-                    cleanupIfNeeded(nowMillis, snapshot);
+                    // A valid inspection already counted this event's cleanup
+                    // pass, so do not count it twice.
+                    if (!inspectionCanBeReused) {
+                        cleanupIfNeeded(nowMillis, snapshot);
+                    }
                     return result;
                 }
                 commitChatState(state, message, nowMillis, snapshot);
-                cleanupIfNeeded(nowMillis, snapshot);
+                if (!inspectionCanBeReused) {
+                    cleanupIfNeeded(nowMillis, snapshot);
+                }
                 return Optional.empty();
             }
         } finally {
@@ -251,6 +328,16 @@ public final class SpamDetector implements AutoCloseable {
             long nowMillis,
             PluginConfig.SpamConfig config
     ) {
+        return detectChat(state, message, nowMillis, config, true);
+    }
+
+    private static Optional<DetectionResult> detectChat(
+            PlayerState state,
+            String message,
+            long nowMillis,
+            PluginConfig.SpamConfig config,
+            boolean includeRepeatedContent
+    ) {
         Optional<DetectionResult> result = detectMinimumInterval(
                 state,
                 message,
@@ -264,7 +351,7 @@ public final class SpamDetector implements AutoCloseable {
         if (result.isEmpty() && config.enabled()) {
             result = detectSimilarMessage(state, message, nowMillis, config.similarMessage());
         }
-        if (result.isEmpty() && config.enabled()) {
+        if (result.isEmpty() && config.enabled() && includeRepeatedContent) {
             result = detectRepeatedContent(message, config);
         }
         if (result.isEmpty() && config.enabled()) {
@@ -406,11 +493,16 @@ public final class SpamDetector implements AutoCloseable {
                     break;
                 }
 
-                String unit = scanText.substring(start, start + unitLength);
                 int repeats = 1;
                 int next = start + unitLength;
+                if (scanText.charAt(start) != scanText.charAt(next)
+                        || (unitLength > 1
+                        && scanText.charAt(start + unitLength - 1)
+                        != scanText.charAt(next + unitLength - 1))) {
+                    continue;
+                }
                 while (next + unitLength <= scanText.length()
-                        && scanText.regionMatches(next, unit, 0, unitLength)) {
+                        && scanText.regionMatches(next, scanText, start, unitLength)) {
                     if (++comparisons > MAX_REPEATED_COMPARISONS) {
                         return Optional.empty();
                     }
@@ -444,13 +536,13 @@ public final class SpamDetector implements AutoCloseable {
         if (!longMessage.enabled()) {
             return Optional.empty();
         }
+        if (message.length() < longMessage.minLength()) {
+            return Optional.empty();
+        }
 
         long windowMillis = longMessage.windowSeconds() * 1000L;
         Deque<Long> recentLongMessages = new ArrayDeque<>(state.longMessageTimes);
         pruneLongMessages(recentLongMessages, nowMillis, windowMillis);
-        if (message.length() < longMessage.minLength()) {
-            return Optional.empty();
-        }
         recentLongMessages.addLast(nowMillis);
         while (recentLongMessages.size() > longMessage.maxMessages()) {
             recentLongMessages.removeFirst();
@@ -526,6 +618,17 @@ public final class SpamDetector implements AutoCloseable {
         MessageDigest digest = SHA256.get();
         digest.reset();
         return digest.digest(message.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public record ChatInspection(
+            UUID playerId,
+            String message,
+            Optional<DetectionResult> result,
+            long configVersion
+    ) {
+        public ChatInspection {
+            result = result == null ? Optional.empty() : result;
+        }
     }
 
     private static PluginConfig.SpamConfig disabledConfig() {

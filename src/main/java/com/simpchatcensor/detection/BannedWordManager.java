@@ -159,6 +159,14 @@ public final class BannedWordManager implements AutoCloseable {
         // pinyin string with contains() lets a longer phrase such as "干嘛的"
         // (ganmade) trigger the suffix rule "妈的" (made).
         for (String token : TextPreprocessor.tokens(message, false)) {
+            if (!containsHan(token)) {
+                Set<String> originals = pinyinIndex.get(token);
+                if (originals != null && !originals.isEmpty()) {
+                    return pinyinResult(token, token, originals.iterator().next(), snapshot);
+                }
+                continue;
+            }
+
             Set<String> tokenPinyin = pinyinConverter.combinations(token, snapshot.pinyin().maxCombinations());
             for (String variant : tokenPinyin) {
                 Set<String> originals = pinyinIndex.get(variant);
@@ -167,16 +175,36 @@ public final class BannedWordManager implements AutoCloseable {
                 }
 
                 String original = originals.iterator().next();
-                return Optional.of(DetectionResult.of(
-                        DetectionType.FUZZY_PINYIN,
-                        token,
-                        original,
-                        snapshot.defaultAction(),
-                        variant
-                ));
+                return pinyinResult(token, variant, original, snapshot);
             }
         }
         return Optional.empty();
+    }
+
+    private static Optional<DetectionResult> pinyinResult(
+            String token,
+            String variant,
+            String original,
+            PluginConfig snapshot
+    ) {
+        return Optional.of(DetectionResult.of(
+                DetectionType.FUZZY_PINYIN,
+                token,
+                original,
+                snapshot.defaultAction(),
+                variant
+        ));
+    }
+
+    private static boolean containsHan(String value) {
+        for (int offset = 0; offset < value.length(); ) {
+            int codePoint = value.codePointAt(offset);
+            offset += Character.charCount(codePoint);
+            if (Character.UnicodeScript.of(codePoint) == Character.UnicodeScript.HAN) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Optional<DetectionResult> scanLevenshtein(String message, PluginConfig snapshot) {

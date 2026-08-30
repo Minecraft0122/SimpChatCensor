@@ -64,6 +64,7 @@ class BannedWordManagerTest {
         assertEquals(DetectionType.FUZZY_PINYIN, result.type());
         assertEquals("嘛的", result.detectedText());
         assertEquals("妈的", result.rule());
+        assertEquals(DetectionType.FUZZY_PINYIN, manager.scan("made").orElseThrow().type());
     }
 
     @Test

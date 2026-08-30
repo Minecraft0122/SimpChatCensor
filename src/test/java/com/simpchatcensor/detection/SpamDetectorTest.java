@@ -146,6 +146,37 @@ class SpamDetectorTest {
     }
 
     @Test
+    void reusesStatelessInspectionAndRechecksAfterAConfigurationChange() {
+        SpamDetector detector = detector(new PluginConfig.SpamConfig(
+                true,
+                5,
+                new PluginConfig.RepeatedContentConfig(true, 4, 2, 16, 12),
+                new PluginConfig.LongMessageConfig(false, 300, 3, 10)
+        ));
+        String repeated = "ab".repeat(8);
+
+        SpamDetector.ChatInspection inspection = detector.inspectChat(PLAYER, repeated, 1_000);
+        assertEquals(DetectionType.SPAM, inspection.result().orElseThrow().type());
+
+        detector.clear(PLAYER);
+        SpamDetector.ChatInspection acceptedInspection = detector.inspectChat(PLAYER, "normal", 2_000);
+        assertTrue(detector.detectAfterInspection(PLAYER, "normal", acceptedInspection, 2_001).isEmpty());
+
+        detector.reload(new PluginConfig.SpamConfig(
+                true,
+                5,
+                new PluginConfig.RepeatedContentConfig(true, 4, 2, 16, 12),
+                new PluginConfig.LongMessageConfig(false, 300, 3, 10)
+        ));
+        assertEquals(
+                DetectionType.SPAM,
+                detector.detectAfterInspection(PLAYER, repeated, acceptedInspection, 2_002)
+                        .orElseThrow()
+                        .type()
+        );
+    }
+
+    @Test
     void commandInspectionDoesNotCommitActivity() {
         SpamDetector detector = detector(new PluginConfig.SpamConfig(
                 false,

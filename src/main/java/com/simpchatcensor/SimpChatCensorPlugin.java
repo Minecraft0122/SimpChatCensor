@@ -53,6 +53,9 @@ public final class SimpChatCensorPlugin extends JavaPlugin {
         if (spamDetector != null) {
             spamDetector.close();
         }
+        if (violationLogger != null) {
+            violationLogger.close();
+        }
     }
 
     public void reloadPlugin() {

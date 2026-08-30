@@ -21,6 +21,10 @@ public final class IpDomainDetector {
     private static final String IPV4_SEPARATOR = "\\s*[" + IPV4_SEPARATOR_CHARS + "]\\s*";
     private static final String DOMAIN_SEPARATOR_CHARS = ".，。．｡﹒､、";
     private static final String DOMAIN_COMMA_CHARS = ",，､、";
+    // A valid DNS name cannot contain more than 127 one-character labels. The
+    // bound also keeps the backtracking regexes from recursing on unbounded
+    // attacker-controlled input.
+    private static final int MAX_DOMAIN_LABELS = 127;
     private static final String DOMAIN_SEPARATOR = "\\h{0,8}(?:[" + DOMAIN_SEPARATOR_CHARS
             + "]|\\[\\h*[.．]\\])\\h{0,8}";
     private static final String DOMAIN_LABEL = "[\\p{L}\\p{N}](?:[\\p{L}\\p{N}-]{0,61}[\\p{L}\\p{N}])?";
@@ -31,12 +35,12 @@ public final class IpDomainDetector {
             "(?i)(?<![0-9a-f:])((?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4})(?![0-9a-f:])"
     );
     private static final Pattern DOMAIN_PATTERN = Pattern.compile(
-            "(?i)(?<![\\p{L}\\p{N}])((?:" + DOMAIN_LABEL + DOMAIN_SEPARATOR + ")+"
+            "(?i)(?<![\\p{L}\\p{N}])((?:" + DOMAIN_LABEL + DOMAIN_SEPARATOR + "){1," + MAX_DOMAIN_LABELS + "}"
                     + DOMAIN_LABEL + "(?::[0-9]{1,5})?(?:/\\S*)?"
                     + ")(?![\\p{L}\\p{N}])"
     );
     private static final Pattern COMMA_DOMAIN_PATTERN = Pattern.compile(
-            "(?i)(?<![\\p{L}\\p{N}])((?:" + DOMAIN_LABEL + "[" + DOMAIN_COMMA_CHARS + "])+"
+            "(?i)(?<![\\p{L}\\p{N}])((?:" + DOMAIN_LABEL + "[" + DOMAIN_COMMA_CHARS + "]){1," + MAX_DOMAIN_LABELS + "}"
                     + DOMAIN_LABEL + "(?::[0-9]{1,5})?(?:/\\S*)?"
                     + ")(?![\\p{L}\\p{N}])"
     );
@@ -44,12 +48,16 @@ public final class IpDomainDetector {
     private final PluginConfig.IpDomainConfig config;
     private final GeoIpService geoIpService;
     private final List<SubnetUtils> cidrWhitelist;
+    private final Set<String> exactIpWhitelist;
+    private final Set<String> domainWhitelist;
     private final Set<String> domainSuffixes;
 
     public IpDomainDetector(PluginConfig.IpDomainConfig config, GeoIpService geoIpService) {
         this.config = config;
         this.geoIpService = geoIpService;
         this.cidrWhitelist = compileCidrs(config.ipWhitelist());
+        this.exactIpWhitelist = compileExactIpWhitelist(config.ipWhitelist());
+        this.domainWhitelist = compileDomainWhitelist(config.domainWhitelist());
         this.domainSuffixes = compileDomainSuffixes(config.domainSuffixes());
     }
 
@@ -148,10 +156,8 @@ public final class IpDomainDetector {
     }
 
     private boolean isWhitelistedIp(String ip) {
-        for (String allowed : config.ipWhitelist()) {
-            if (allowed.equalsIgnoreCase(ip)) {
-                return true;
-            }
+        if (exactIpWhitelist.contains(ip.toLowerCase(Locale.ROOT))) {
+            return true;
         }
         if (ip.indexOf(':') < 0) {
             for (SubnetUtils subnet : cidrWhitelist) {
@@ -168,9 +174,8 @@ public final class IpDomainDetector {
         if (normalizedHost.isEmpty()) {
             return false;
         }
-        for (String allowed : config.domainWhitelist()) {
-            String normalizedAllowed = DomainNormalizer.canonicalizeHost(allowed);
-            if (normalizedHost.equals(normalizedAllowed) || normalizedHost.endsWith("." + normalizedAllowed)) {
+        for (String allowed : domainWhitelist) {
+            if (normalizedHost.equals(allowed) || normalizedHost.endsWith("." + allowed)) {
                 return true;
             }
         }
@@ -191,6 +196,33 @@ public final class IpDomainDetector {
         return List.copyOf(compiled);
     }
 
+    private static Set<String> compileExactIpWhitelist(List<String> values) {
+        Set<String> compiled = new HashSet<>();
+        if (values == null) {
+            return Set.of();
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                compiled.add(value.trim().toLowerCase(Locale.ROOT));
+            }
+        }
+        return Set.copyOf(compiled);
+    }
+
+    private static Set<String> compileDomainWhitelist(List<String> values) {
+        Set<String> compiled = new HashSet<>();
+        if (values == null) {
+            return Set.of();
+        }
+        for (String value : values) {
+            String normalized = DomainNormalizer.canonicalizeHost(value);
+            if (!normalized.isEmpty()) {
+                compiled.add(normalized);
+            }
+        }
+        return Set.copyOf(compiled);
+    }
+
     private static Set<String> compileDomainSuffixes(List<String> suffixes) {
         Set<String> compiled = new HashSet<>();
         if (suffixes == null) {
@@ -206,8 +238,14 @@ public final class IpDomainDetector {
     }
 
     private boolean hasAllowedDomainSuffix(String host) {
-        for (String suffix : domainSuffixes) {
-            if (host.equals(suffix) || host.endsWith("." + suffix)) {
+        if (domainSuffixes.contains(host)) {
+            return true;
+        }
+
+        // Check only suffixes that can occur at a label boundary. The previous
+        // implementation compared every configured suffix for every host.
+        for (int dot = host.indexOf('.'); dot >= 0; dot = host.indexOf('.', dot + 1)) {
+            if (domainSuffixes.contains(host.substring(dot + 1))) {
                 return true;
             }
         }
