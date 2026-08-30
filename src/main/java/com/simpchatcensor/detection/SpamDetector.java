@@ -60,7 +60,47 @@ public final class SpamDetector implements AutoCloseable {
         return detect(playerId, message, System.currentTimeMillis());
     }
 
+    /**
+     * Checks chat spam rules without adding the message to a player's history.
+     * Listeners use this for the early spam guard before content actions. It
+     * may still perform periodic stale-state cleanup.
+     */
+    public Optional<DetectionResult> inspect(UUID playerId, String message) {
+        return inspect(playerId, message, System.currentTimeMillis());
+    }
+
     /** Visible for deterministic unit tests; timestamps are epoch milliseconds. */
+    public Optional<DetectionResult> inspect(UUID playerId, String message, long nowMillis) {
+        lifecycle.readLock().lock();
+        try {
+            PluginConfig.SpamConfig snapshot = config;
+            if (playerId == null || message == null || message.isBlank()) {
+                return Optional.empty();
+            }
+
+            PlayerState state = states.get(playerId);
+            if (state == null) {
+                Optional<DetectionResult> result = detectChat(new PlayerState(), message, nowMillis, snapshot);
+                cleanupIfNeeded(nowMillis, snapshot);
+                return result;
+            }
+
+            synchronized (state) {
+                Optional<DetectionResult> result = detectChat(state, message, nowMillis, snapshot);
+                cleanupIfNeeded(nowMillis, snapshot);
+                return result;
+            }
+        } finally {
+            lifecycle.readLock().unlock();
+        }
+    }
+
+    /**
+     * Checks a message and records it only when no spam rule matches. Callers
+     * must not invoke this method for content that was already rejected by a
+     * separate detector. Timestamps are epoch milliseconds for deterministic
+     * unit tests.
+     */
     public Optional<DetectionResult> detect(UUID playerId, String message, long nowMillis) {
         lifecycle.readLock().lock();
         try {
@@ -71,49 +111,16 @@ public final class SpamDetector implements AutoCloseable {
 
             PlayerState state = states.computeIfAbsent(playerId, ignored -> new PlayerState());
             synchronized (state) {
-                Optional<DetectionResult> minimumInterval = detectMinimumInterval(
-                        state,
-                        message,
-                        nowMillis,
-                        snapshot.minimumInterval().messageMillis(),
-                        "message"
-                );
-                Optional<DetectionResult> duplicate = snapshot.enabled()
-                        ? detectDuplicate(state, message, nowMillis, snapshot)
-                        : Optional.empty();
-                Optional<DetectionResult> similar = snapshot.enabled()
-                        ? detectSimilarMessage(state, message, nowMillis, snapshot.similarMessage())
-                        : Optional.empty();
-                Optional<DetectionResult> repeated = snapshot.enabled()
-                        ? detectRepeatedContent(message, snapshot)
-                        : Optional.empty();
-                Optional<DetectionResult> longBurst = snapshot.enabled()
-                        ? detectLongMessageBurst(state, message, nowMillis, snapshot)
-                        : Optional.empty();
-
-                state.lastMessage = message.length() <= MAX_EXACT_DUPLICATE_LENGTH ? message : null;
-                state.lastMessageLength = message.length();
-                state.lastMessageDigest = message.length() <= MAX_EXACT_DUPLICATE_LENGTH
-                        ? new byte[0]
-                        : fingerprint(message);
-                state.lastComparableMessage = comparableMessage(message);
-                state.lastMessageAt = nowMillis;
-                state.hasMessageAt = true;
-                state.lastActivityAt = nowMillis;
+                Optional<DetectionResult> result = detectChat(state, message, nowMillis, snapshot);
+                if (result.isPresent()) {
+                    // Rejected messages do not update activity/history, but
+                    // they still participate in periodic stale-state cleanup.
+                    cleanupIfNeeded(nowMillis, snapshot);
+                    return result;
+                }
+                commitChatState(state, message, nowMillis, snapshot);
                 cleanupIfNeeded(nowMillis, snapshot);
-                if (minimumInterval.isPresent()) {
-                    return minimumInterval;
-                }
-                if (duplicate.isPresent()) {
-                    return duplicate;
-                }
-                if (similar.isPresent()) {
-                    return similar;
-                }
-                if (repeated.isPresent()) {
-                    return repeated;
-                }
-                return longBurst;
+                return Optional.empty();
             }
         } finally {
             lifecycle.readLock().unlock();
@@ -122,6 +129,43 @@ public final class SpamDetector implements AutoCloseable {
 
     public Optional<DetectionResult> detectCommandInterval(UUID playerId, String command) {
         return detectCommandInterval(playerId, command, System.currentTimeMillis());
+    }
+
+    /** Checks the command interval without updating the shared activity clock. */
+    public Optional<DetectionResult> inspectCommandInterval(UUID playerId, String command) {
+        return inspectCommandInterval(playerId, command, System.currentTimeMillis());
+    }
+
+    /** Visible for deterministic unit tests; timestamps are epoch milliseconds. */
+    public Optional<DetectionResult> inspectCommandInterval(UUID playerId, String command, long nowMillis) {
+        lifecycle.readLock().lock();
+        try {
+            PluginConfig.SpamConfig snapshot = config;
+            int minimumMillis = snapshot.minimumInterval().commandMillis();
+            if (minimumMillis <= 0 || playerId == null || command == null || command.isBlank()) {
+                return Optional.empty();
+            }
+
+            PlayerState state = states.get(playerId);
+            if (state == null) {
+                cleanupIfNeeded(nowMillis, snapshot);
+                return Optional.empty();
+            }
+
+            synchronized (state) {
+                Optional<DetectionResult> result = detectMinimumInterval(
+                        state,
+                        command,
+                        nowMillis,
+                        minimumMillis,
+                        "command"
+                );
+                cleanupIfNeeded(nowMillis, snapshot);
+                return result;
+            }
+        } finally {
+            lifecycle.readLock().unlock();
+        }
     }
 
     /** Visible for deterministic unit tests; timestamps are epoch milliseconds. */
@@ -143,7 +187,11 @@ public final class SpamDetector implements AutoCloseable {
                         minimumMillis,
                         "command"
                 );
-                state.lastActivityAt = nowMillis;
+                if (result.isPresent()) {
+                    cleanupIfNeeded(nowMillis, snapshot);
+                    return result;
+                }
+                commitCommandActivity(state, nowMillis);
                 cleanupIfNeeded(nowMillis, snapshot);
                 return result;
             }
@@ -197,6 +245,34 @@ public final class SpamDetector implements AutoCloseable {
         return Optional.empty();
     }
 
+    private static Optional<DetectionResult> detectChat(
+            PlayerState state,
+            String message,
+            long nowMillis,
+            PluginConfig.SpamConfig config
+    ) {
+        Optional<DetectionResult> result = detectMinimumInterval(
+                state,
+                message,
+                nowMillis,
+                config.minimumInterval().messageMillis(),
+                "message"
+        );
+        if (result.isEmpty() && config.enabled()) {
+            result = detectDuplicate(state, message, nowMillis, config);
+        }
+        if (result.isEmpty() && config.enabled()) {
+            result = detectSimilarMessage(state, message, nowMillis, config.similarMessage());
+        }
+        if (result.isEmpty() && config.enabled()) {
+            result = detectRepeatedContent(message, config);
+        }
+        if (result.isEmpty() && config.enabled()) {
+            result = detectLongMessageBurst(state, message, nowMillis, config);
+        }
+        return result;
+    }
+
     private static Optional<DetectionResult> detectMinimumInterval(
             PlayerState state,
             String content,
@@ -217,9 +293,38 @@ public final class SpamDetector implements AutoCloseable {
                 ));
             }
         }
+        return result;
+    }
+
+    private static void commitChatState(
+            PlayerState state,
+            String message,
+            long nowMillis,
+            PluginConfig.SpamConfig config
+    ) {
+        // Chat and commands share this activity clock. Chat always records it,
+        // even when its own minimum interval is disabled, matching the legacy
+        // cross-channel rate-limit behavior.
         state.lastContentAt = nowMillis;
         state.hasContentAt = true;
-        return result;
+        state.lastMessage = message.length() <= MAX_EXACT_DUPLICATE_LENGTH ? message : null;
+        state.lastMessageLength = message.length();
+        state.lastMessageDigest = message.length() <= MAX_EXACT_DUPLICATE_LENGTH
+                ? new byte[0]
+                : fingerprint(message);
+        state.lastComparableMessage = comparableMessage(message);
+        state.lastMessageAt = nowMillis;
+        state.hasMessageAt = true;
+        if (config.enabled()) {
+            commitLongMessageState(state, message, nowMillis, config.longMessageBurst());
+        }
+        state.lastActivityAt = nowMillis;
+    }
+
+    private static void commitCommandActivity(PlayerState state, long nowMillis) {
+        state.lastContentAt = nowMillis;
+        state.hasContentAt = true;
+        state.lastActivityAt = nowMillis;
     }
 
     private static Optional<DetectionResult> detectSimilarMessage(
@@ -336,18 +441,21 @@ public final class SpamDetector implements AutoCloseable {
             PluginConfig.SpamConfig config
     ) {
         PluginConfig.LongMessageConfig longMessage = config.longMessageBurst();
-        if (!longMessage.enabled() || message.length() < longMessage.minLength()) {
-            pruneLongMessages(state.longMessageTimes, nowMillis, longMessage.windowSeconds() * 1000L);
+        if (!longMessage.enabled()) {
             return Optional.empty();
         }
 
         long windowMillis = longMessage.windowSeconds() * 1000L;
-        pruneLongMessages(state.longMessageTimes, nowMillis, windowMillis);
-        state.longMessageTimes.addLast(nowMillis);
-        while (state.longMessageTimes.size() > longMessage.maxMessages()) {
-            state.longMessageTimes.removeFirst();
+        Deque<Long> recentLongMessages = new ArrayDeque<>(state.longMessageTimes);
+        pruneLongMessages(recentLongMessages, nowMillis, windowMillis);
+        if (message.length() < longMessage.minLength()) {
+            return Optional.empty();
         }
-        if (state.longMessageTimes.size() < longMessage.maxMessages()) {
+        recentLongMessages.addLast(nowMillis);
+        while (recentLongMessages.size() > longMessage.maxMessages()) {
+            recentLongMessages.removeFirst();
+        }
+        if (recentLongMessages.size() < longMessage.maxMessages()) {
             return Optional.empty();
         }
 
@@ -359,6 +467,28 @@ public final class SpamDetector implements AutoCloseable {
                 DetectionAction.CANCEL,
                 "long-message-burst"
         ));
+    }
+
+    private static void commitLongMessageState(
+            PlayerState state,
+            String message,
+            long nowMillis,
+            PluginConfig.LongMessageConfig config
+    ) {
+        if (!config.enabled()) {
+            return;
+        }
+
+        long windowMillis = config.windowSeconds() * 1000L;
+        pruneLongMessages(state.longMessageTimes, nowMillis, windowMillis);
+        if (message.length() < config.minLength()) {
+            return;
+        }
+
+        state.longMessageTimes.addLast(nowMillis);
+        while (state.longMessageTimes.size() > config.maxMessages()) {
+            state.longMessageTimes.removeFirst();
+        }
     }
 
     private void cleanupIfNeeded(long nowMillis, PluginConfig.SpamConfig snapshot) {

@@ -48,9 +48,10 @@ mvn -B -ntp clean verify
 OP 默认拥有 `simpchatcensor.bypass`，会跳过聊天和命令内容检测；可通过权限插件按需显式撤销或授予。
 命令内容使用 `config.yml` 的 `command-whitelist` 精确根命令白名单处理。默认白名单为
 `scc`、`lp`、`luckperms`，支持 Bukkit 命名空间形式，避免把 LuckPerms 权限节点误识别为域名；
-未列出的命令在 `filter-commands: true` 时先执行硬性最小间隔限制，再参与内容检测；关闭该开关会关闭整套命令检测。
+未列出的命令在 `filter-commands: true` 时先执行硬性最小间隔预检，再参与内容检测；只有内容最终放行的命令才会更新共享活动记录；关闭该开关会关闭整套命令检测。
 `content-minimum-interval` 没有关闭开关，聊天与受检命令共用同一玩家活动时间；白名单命令和
 拥有 `simpchatcensor.bypass` 的玩家不受该限制。
+默认聊天消息最短间隔为 200 毫秒，受检命令保持 250 毫秒；已有配置不会被重载自动覆盖，升级后如需使用新默认值请手动修改 `config.yml`。
 插件首次启动时会生成 `plugins/SimpChatCensor/USAGE.md`，其中包含完整指令、权限和 Java 正则示例。
 
 ## 配置文件
@@ -70,7 +71,7 @@ OP 默认拥有 `simpchatcensor.bypass`，会跳过聊天和命令内容检测�
 从旧版本升级时，原 `config.yml` 中的 `banned-words` 和 `ip-domain-detection.ip-whitelist`
 会在首次加载时自动合并到两个新文件中；旧的 CIDR/IP 黑名单配置会被移除。
 
-聊天刷屏规则和完整词库说明见插件首次启动生成的 `plugins/SimpChatCensor/USAGE.md`。刷屏命中会直接取消消息；
+聊天刷屏规则和完整词库说明见插件首次启动生成的 `plugins/SimpChatCensor/USAGE.md`。刷屏命中会直接取消消息；被内容规则拦截或被刷屏规则取消的消息不会计入后续刷屏统计，只有实际放行的消息才会更新历史。
 OP 默认拥有 `simpchatcensor.bypass`，不会参与聊天内容和刷屏统计。
 
 域名检测会先规范化逗号、中文句号等混淆分隔符，再要求域名最后的后缀出现在

@@ -51,7 +51,7 @@ public final class CommandListener implements Listener {
             return;
         }
 
-        Optional<DetectionResult> interval = spamDetector.detectCommandInterval(
+        Optional<DetectionResult> interval = spamDetector.inspectCommandInterval(
                 player.getUniqueId(),
                 command
         );
@@ -69,21 +69,40 @@ public final class CommandListener implements Listener {
         }
 
         Optional<DetectionResult> result = bannedWordManager.scan(command);
-        result.ifPresent(detectionResult -> actionExecutor.applyTextAction(
-                player,
-                command,
-                detectionResult,
-                filtered -> {
-                    if (filtered.startsWith("/")) {
-                        event.setMessage(filtered);
-                    } else {
-                        event.setCancelled(true);
-                    }
-                },
-                () -> event.setCancelled(true),
-                true,
-                "CMD"
-        ));
+        if (result.isPresent()) {
+            DetectionResult detectionResult = result.orElseThrow();
+            boolean cancelled = actionExecutor.applyTextAction(
+                    player,
+                    command,
+                    detectionResult,
+                    filtered -> {
+                        if (filtered.startsWith("/")) {
+                            event.setMessage(filtered);
+                        } else {
+                            event.setCancelled(true);
+                        }
+                    },
+                    () -> event.setCancelled(true),
+                    true,
+                    "CMD"
+            );
+            if (cancelled || event.isCancelled()) {
+                return;
+            }
+        }
+
+        // Re-check atomically after content actions. A concurrent command from
+        // the same player may have committed the shared activity clock.
+        spamDetector.detectCommandInterval(player.getUniqueId(), command)
+                .ifPresent(detectedInterval -> actionExecutor.applyTextAction(
+                        player,
+                        command,
+                        detectedInterval,
+                        filtered -> event.setCancelled(true),
+                        () -> event.setCancelled(true),
+                        false,
+                        "CMD"
+                ));
     }
 
     public static boolean isWhitelistedCommand(String command, Collection<String> commandWhitelist) {

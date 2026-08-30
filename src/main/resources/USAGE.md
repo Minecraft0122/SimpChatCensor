@@ -47,9 +47,9 @@ Catch > 玩家名: 原始命令或消息
 
 ## 聊天刷屏检测
 
-`spam-detection` 只作用于聊天消息，不改变 `/scc` 管理命令和命令根白名单的处理。刷屏检测在普通违禁词扫描前执行，
-重复消息或其它刷屏命中会直接取消当前消息，
-不受顶部 `action: filter` 或 `action: warn` 设置影响；拥有 `simpchatcensor.bypass` 的玩家不参与刷屏统计。
+`spam-detection` 只作用于聊天消息，不改变 `/scc` 管理命令和命令根白名单的处理。消息先进行不写入历史的刷屏预检，未命中时再进行普通违禁词扫描；
+内容最终放行后会再次确认刷屏状态并更新历史，避免并发消息绕过限速。重复消息或其它刷屏命中会直接取消当前消息，不受顶部 `action: filter` 或 `action: warn` 设置影响。
+被内容规则拦截或被刷屏规则取消的消息不会计入后续刷屏统计，只有实际放行的消息才会更新历史；拥有 `simpchatcensor.bypass` 的玩家不参与刷屏统计。
 
 - 同一玩家在 `duplicate-window-seconds` 内连续发送与上一条完全相同的消息，第二条会被拦截；大小写、空格或标点不同不算完全一致。
 - `similar-message` 会比较最近两条消息的规范化共同前缀。共同前缀达到 `minimum-common-prefix-length`，且两条消息在此前缀后的尾部都不超过 `maximum-suffix-length` 时会被拦截，专门处理“每条广告后追加随机字符”的绕过方式。它不是通用相似度算法，较长的正常句子不会因为只有开头相同而触发。
@@ -58,7 +58,7 @@ Catch > 玩家名: 原始命令或消息
 
 ### 消息和命令最小间隔
 
-`content-minimum-interval` 是硬性限制，没有单独的 `enabled` 开关。插件按玩家记录最近一次聊天或非白名单命令的时间：
+`content-minimum-interval` 是硬性限制，没有单独的 `enabled` 开关。插件只记录最终放行的聊天或非白名单命令，并按玩家保存最近一次活动时间：
 当前事件是聊天时使用 `message-millis`，当前事件是命令时使用 `command-millis`。两类事件共用记录，不能通过“聊天、命令交替发送”绕过。
 间隔不足时当前消息/命令直接取消，并使用 `DetectionType.SPAM` 记录和通知；不受顶部 `action: filter` 或 `action: warn` 影响。
 命令根白名单中的命令，以及拥有 `simpchatcensor.bypass` 的玩家不受此限制。`filter-commands: false` 会关闭整套命令检测，聊天间隔仍然生效。
@@ -66,9 +66,11 @@ Catch > 玩家名: 原始命令或消息
 
 ```yaml
 content-minimum-interval:
-  message-millis: 800
+  message-millis: 200
   command-millis: 250
 ```
+
+聊天消息默认最短间隔为 200 毫秒，受检命令默认保持 250 毫秒。已有 `config.yml` 不会在重载时被覆盖；升级后如需使用新默认值，请手动修改对应字段。
 
 默认配置如下，可按服务器聊天节奏调整：
 

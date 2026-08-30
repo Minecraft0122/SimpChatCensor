@@ -229,7 +229,7 @@ public final class ConfigManager {
                         bounded(source.getInt("spam-detection.long-message-burst.window-seconds", 10), 1, 3600, 10)
                 ),
                 new PluginConfig.MinimumIntervalConfig(
-                        bounded(source.getInt("content-minimum-interval.message-millis", 800), 100, 60_000, 800),
+                        bounded(source.getInt("content-minimum-interval.message-millis", 200), 100, 60_000, 200),
                         bounded(source.getInt("content-minimum-interval.command-millis", 250), 100, 60_000, 250)
                 ),
                 new PluginConfig.SimilarMessageConfig(

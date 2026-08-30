@@ -30,9 +30,10 @@ command-whitelist:
 # 硬性限制同一玩家连续发送受限内容的最小间隔，没有单独关闭开关。
 # 聊天和命令共用同一条活动记录，命令白名单与 simpchatcensor.bypass 不受此限制。
 # 命令间隔受 filter-commands 总开关控制；关闭该开关会关闭整套命令检测。
+# 被内容规则或刷屏规则拦截的消息不会计入活动记录和刷屏统计。
 content-minimum-interval:
-  # 两次聊天之间至少间隔 800 毫秒。
-  message-millis: 800
+  # 两次聊天之间至少间隔 200 毫秒。
+  message-millis: 200
   # 两次非白名单命令之间至少间隔 250 毫秒。
   command-millis: 250
 

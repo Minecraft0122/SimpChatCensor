@@ -3,7 +3,6 @@ package com.simpchatcensor.listener;
 import com.simpchatcensor.ActionExecutor;
 import com.simpchatcensor.detection.BannedWordManager;
 import com.simpchatcensor.detection.DetectionResult;
-import com.simpchatcensor.detection.DetectionType;
 import com.simpchatcensor.detection.SpamDetector;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
@@ -41,17 +40,45 @@ public final class ChatListener implements Listener {
         }
 
         String message = PLAIN_TEXT.serialize(event.message());
-        Optional<DetectionResult> spamResult = spamDetector.detect(player.getUniqueId(), message);
-        Optional<DetectionResult> result = spamResult.isPresent()
-                ? spamResult
-                : bannedWordManager.scan(message);
-        result.ifPresent(detectionResult -> actionExecutor.applyTextAction(
-                player,
-                message,
-                detectionResult,
-                filtered -> event.message(Component.text(filtered)),
-                () -> event.setCancelled(true),
-                detectionResult.type() != DetectionType.SPAM
-        ));
+        Optional<DetectionResult> spamResult = spamDetector.inspect(player.getUniqueId(), message);
+        if (spamResult.isPresent()) {
+            actionExecutor.applyTextAction(
+                    player,
+                    message,
+                    spamResult.orElseThrow(),
+                    filtered -> event.message(Component.text(filtered)),
+                    () -> event.setCancelled(true),
+                    false
+            );
+            return;
+        }
+
+        Optional<DetectionResult> contentResult = bannedWordManager.scan(message);
+        if (contentResult.isPresent()) {
+            DetectionResult detectionResult = contentResult.orElseThrow();
+            boolean cancelled = actionExecutor.applyTextAction(
+                    player,
+                    message,
+                    detectionResult,
+                    filtered -> event.message(Component.text(filtered)),
+                    () -> event.setCancelled(true),
+                    true
+            );
+            if (cancelled || event.isCancelled()) {
+                return;
+            }
+        }
+
+        // Re-check atomically after content actions. A concurrent message from
+        // the same player may have committed history during the content scan.
+        spamDetector.detect(player.getUniqueId(), message)
+                .ifPresent(detectionResult -> actionExecutor.applyTextAction(
+                        player,
+                        message,
+                        detectionResult,
+                        filtered -> event.message(Component.text(filtered)),
+                        () -> event.setCancelled(true),
+                        false
+                ));
     }
 }

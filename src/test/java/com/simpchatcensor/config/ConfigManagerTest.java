@@ -115,7 +115,7 @@ class ConfigManagerTest {
         source.set("spam-detection.similar-message.maximum-suffix-length", 100_000);
 
         PluginConfig.SpamConfig spam = ConfigManager.loadSpamConfig(source);
-        assertEquals(800, spam.minimumInterval().messageMillis());
+        assertEquals(200, spam.minimumInterval().messageMillis());
         assertEquals(60_000, spam.minimumInterval().commandMillis());
         assertEquals(12, spam.similarMessage().minimumCommonPrefixLength());
         assertEquals(256, spam.similarMessage().maximumSuffixLength());

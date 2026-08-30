@@ -74,6 +74,96 @@ class SpamDetectorTest {
     }
 
     @Test
+    void rejectedMinimumIntervalMessagesDoNotAdvanceActivity() {
+        SpamDetector detector = detector(new PluginConfig.SpamConfig(
+                false,
+                5,
+                new PluginConfig.RepeatedContentConfig(false, 4, 2, 16, 12),
+                new PluginConfig.LongMessageConfig(false, 300, 3, 10),
+                new PluginConfig.MinimumIntervalConfig(200, 0),
+                new PluginConfig.SimilarMessageConfig(false, 8, 8, 12)
+        ));
+
+        assertTrue(detector.detect(PLAYER, "allowed", 1_000).isEmpty());
+        // A message rejected by an earlier rule must not advance the activity
+        // clock before the listener considers the next message.
+        assertEquals("message-minimum-interval", detector.detect(PLAYER, "blocked", 1_100)
+                .orElseThrow().rule());
+        assertTrue(detector.detect(PLAYER, "next", 1_200).isEmpty());
+    }
+
+    @Test
+    void rejectedLongMessagesDoNotOccupyTheBurstWindow() {
+        SpamDetector detector = detector(new PluginConfig.SpamConfig(
+                true,
+                5,
+                new PluginConfig.RepeatedContentConfig(false, 4, 2, 16, 12),
+                new PluginConfig.LongMessageConfig(true, 10, 3, 1),
+                new PluginConfig.MinimumIntervalConfig(0, 0),
+                new PluginConfig.SimilarMessageConfig(false, 8, 8, 12)
+        ));
+
+        assertTrue(detector.detect(PLAYER, "1234567890", 1_000).isEmpty());
+        assertTrue(detector.detect(PLAYER, "abcdefghij", 1_500).isEmpty());
+        assertEquals(DetectionType.SPAM, detector.detect(PLAYER, "klmnopqrst", 1_600).orElseThrow().type());
+        // The rejected third message must not keep the burst full at 2_400.
+        assertTrue(detector.detect(PLAYER, "uvwxyzabcd", 2_400).isEmpty());
+    }
+
+    @Test
+    void rejectedCommandsDoNotAdvanceTheSharedActivityClock() {
+        SpamDetector detector = detector(new PluginConfig.SpamConfig(
+                false,
+                5,
+                new PluginConfig.RepeatedContentConfig(false, 4, 2, 16, 12),
+                new PluginConfig.LongMessageConfig(false, 300, 3, 10),
+                new PluginConfig.MinimumIntervalConfig(200, 250),
+                new PluginConfig.SimilarMessageConfig(false, 8, 8, 12)
+        ));
+
+        assertTrue(detector.detect(PLAYER, "allowed", 1_000).isEmpty());
+        assertEquals("command-minimum-interval", detector.detectCommandInterval(PLAYER, "/blocked", 1_100)
+                .orElseThrow().rule());
+        assertTrue(detector.detectCommandInterval(PLAYER, "/next", 1_250).isEmpty());
+    }
+
+    @Test
+    void inspectionDoesNotCommitChatHistory() {
+        SpamDetector detector = detector(new PluginConfig.SpamConfig(
+                true,
+                5,
+                new PluginConfig.RepeatedContentConfig(false, 4, 2, 16, 12),
+                new PluginConfig.LongMessageConfig(false, 300, 3, 10),
+                new PluginConfig.MinimumIntervalConfig(0, 0),
+                new PluginConfig.SimilarMessageConfig(false, 8, 8, 12)
+        ));
+
+        assertTrue(detector.inspect(PLAYER, "same", 1_000).isEmpty());
+        assertTrue(detector.inspect(PLAYER, "same", 1_001).isEmpty());
+        assertTrue(detector.detect(PLAYER, "same", 1_000).isEmpty());
+        assertEquals(DetectionType.SPAM, detector.inspect(PLAYER, "same", 1_001)
+                .orElseThrow().type());
+    }
+
+    @Test
+    void commandInspectionDoesNotCommitActivity() {
+        SpamDetector detector = detector(new PluginConfig.SpamConfig(
+                false,
+                5,
+                new PluginConfig.RepeatedContentConfig(false, 4, 2, 16, 12),
+                new PluginConfig.LongMessageConfig(false, 300, 3, 10),
+                new PluginConfig.MinimumIntervalConfig(0, 250),
+                new PluginConfig.SimilarMessageConfig(false, 8, 8, 12)
+        ));
+
+        assertTrue(detector.inspectCommandInterval(PLAYER, "/same", 1_000).isEmpty());
+        assertTrue(detector.inspectCommandInterval(PLAYER, "/same", 1_001).isEmpty());
+        assertTrue(detector.detectCommandInterval(PLAYER, "/same", 1_000).isEmpty());
+        assertEquals("command-minimum-interval", detector.inspectCommandInterval(PLAYER, "/next", 1_001)
+                .orElseThrow().rule());
+    }
+
+    @Test
     void reloadClearsHistoryAndSpamAlwaysUsesCancelAction() {
         SpamDetector detector = detector(new PluginConfig.SpamConfig(
                 true,
@@ -151,16 +241,16 @@ class SpamDetectorTest {
                 5,
                 new PluginConfig.RepeatedContentConfig(false, 4, 2, 16, 12),
                 new PluginConfig.LongMessageConfig(false, 300, 3, 10),
-                new PluginConfig.MinimumIntervalConfig(800, 250),
+                new PluginConfig.MinimumIntervalConfig(200, 250),
                 new PluginConfig.SimilarMessageConfig(false, 8, 8, 12)
         ));
 
         assertTrue(detector.detect(PLAYER, "first", 1_000).isEmpty());
-        assertEquals("message-minimum-interval", detector.detect(PLAYER, "second", 1_799).orElseThrow().rule());
-        assertTrue(detector.detect(PLAYER, "third", 2_599).isEmpty());
-        assertEquals("command-minimum-interval", detector.detectCommandInterval(PLAYER, "/home", 2_700).orElseThrow().rule());
-        assertEquals("command-minimum-interval", detector.detectCommandInterval(PLAYER, "/spawn", 2_800).orElseThrow().rule());
-        assertTrue(detector.detectCommandInterval(PLAYER, "/spawn", 3_050).isEmpty());
+        assertEquals("message-minimum-interval", detector.detect(PLAYER, "second", 1_199).orElseThrow().rule());
+        assertTrue(detector.detect(PLAYER, "third", 1_400).isEmpty());
+        assertEquals("command-minimum-interval", detector.detectCommandInterval(PLAYER, "/home", 1_500).orElseThrow().rule());
+        assertEquals("command-minimum-interval", detector.detectCommandInterval(PLAYER, "/spawn", 1_600).orElseThrow().rule());
+        assertTrue(detector.detectCommandInterval(PLAYER, "/spawn", 1_750).isEmpty());
     }
 
     private static SpamDetector detector(PluginConfig.SpamConfig config) {
