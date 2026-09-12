@@ -86,6 +86,38 @@ class BannedWordManagerTest {
         assertTrue(manager.scan("badger").isEmpty());
     }
 
+    @Test
+    void directlyBlocksEmojiAfterExistingDetectionStages() {
+        BannedWordManager manager = new BannedWordManager(Logger.getAnonymousLogger());
+        manager.reload(config(
+                true,
+                false,
+                false,
+                List.of("违规词"),
+                tempDir,
+                false,
+                DetectionAction.WARN
+        ));
+
+        DetectionResult result = manager.scan("你🐎死了").orElseThrow();
+        assertEquals(DetectionType.EMOJI, result.type());
+        assertEquals("🐎", result.detectedText());
+        assertEquals("U+1F40E", result.rule());
+        assertEquals(DetectionAction.CANCEL, result.action());
+        assertEquals("你***死了", manager.censor("你🐎死了", result));
+        assertEquals(DetectionType.LITERAL, manager.scan("违规词🐎").orElseThrow().type());
+
+        BannedWordManager defaultLikeManager = new BannedWordManager(Logger.getAnonymousLogger());
+        defaultLikeManager.reload(config(
+                true,
+                true,
+                false,
+                List.of("妈的"),
+                tempDir
+        ));
+        assertEquals(DetectionType.EMOJI, defaultLikeManager.scan("你🐎死了").orElseThrow().type());
+    }
+
     private static PluginConfig config(
             boolean advanced,
             boolean pinyin,
@@ -104,8 +136,20 @@ class BannedWordManagerTest {
             Path dataFolder,
             boolean useRegex
     ) {
+        return config(advanced, pinyin, levenshtein, words, dataFolder, useRegex, DetectionAction.CANCEL);
+    }
+
+    private static PluginConfig config(
+            boolean advanced,
+            boolean pinyin,
+            boolean levenshtein,
+            List<String> words,
+            Path dataFolder,
+            boolean useRegex,
+            DetectionAction defaultAction
+    ) {
         return new PluginConfig(
-                DetectionAction.CANCEL,
+                defaultAction,
                 useRegex,
                 advanced,
                 true,

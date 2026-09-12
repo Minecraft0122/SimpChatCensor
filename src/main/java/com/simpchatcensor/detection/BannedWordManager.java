@@ -21,6 +21,7 @@ public final class BannedWordManager implements AutoCloseable {
     private final Logger logger;
     private final PinyinConverter pinyinConverter = new PinyinConverter();
     private final GeoIpService geoIpService = new GeoIpService();
+    private final EmojiDetector emojiDetector = new EmojiDetector();
 
     private volatile PluginConfig config;
     private volatile Set<String> literalWords = Set.of();
@@ -69,7 +70,18 @@ public final class BannedWordManager implements AutoCloseable {
             return pinyin;
         }
 
-        return scanLevenshtein(message, snapshot);
+        Optional<DetectionResult> levenshtein = scanLevenshtein(message, snapshot);
+        if (levenshtein.isPresent()) {
+            return levenshtein;
+        }
+
+        return emojiDetector.detect(message).map(match -> DetectionResult.of(
+                DetectionType.EMOJI,
+                match.detectedText(),
+                match.rule(),
+                DetectionAction.CANCEL,
+                "emoji character"
+        ));
     }
 
     public Optional<DetectionResult> scanRemoteAddress(InetAddress address) {

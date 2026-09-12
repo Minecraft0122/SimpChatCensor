@@ -30,7 +30,7 @@ class ViolationLoggerTest {
     Path tempDir;
 
     @Test
-    void writesFiveFieldsToSeparateLocalDateFilesWithoutCallingUuid() throws Exception {
+    void writesFiveFieldsToSeparateLocalDateFilesWithoutCallingUuidOrUpdatingLegacyLogs() throws Exception {
         PluginConfig config = config(true);
         DetectionResult result = DetectionResult.of(
                 com.simpchatcensor.detection.DetectionType.SPAM,
@@ -40,6 +40,11 @@ class ViolationLoggerTest {
                 "duplicate"
         );
         Player player = playerWithoutUuid("Alice");
+        Path legacyDirectoryLog = tempDir.resolve("violations/2026-08-21.log");
+        Path legacyRootLog = tempDir.resolve("violations.log");
+        Files.createDirectories(legacyDirectoryLog.getParent());
+        Files.writeString(legacyDirectoryLog, "legacy-directory");
+        Files.writeString(legacyRootLog, "legacy-root");
 
         ViolationLogger beforeMidnight = new ViolationLogger(
                 Logger.getAnonymousLogger(),
@@ -55,12 +60,13 @@ class ViolationLoggerTest {
         beforeMidnight.close();
         afterMidnight.close();
 
-        Path first = tempDir.resolve("violations/2026-08-21.log");
-        Path second = tempDir.resolve("violations/2026-08-22.log");
+        Path first = tempDir.resolve("logs/2026-08-21.log");
+        Path second = tempDir.resolve("logs/2026-08-22.log");
         assertTrue(Files.isRegularFile(first));
         assertTrue(Files.isRegularFile(second));
         assertEquals(2, Files.readAllLines(first).size());
-        assertFalse(Files.exists(tempDir.resolve("violations.log")));
+        assertEquals("legacy-directory", Files.readString(legacyDirectoryLog));
+        assertEquals("legacy-root", Files.readString(legacyRootLog));
 
         String firstLine = Files.readAllLines(first).get(0);
         String[] fields = firstLine.split("\\t", -1);
@@ -73,7 +79,7 @@ class ViolationLoggerTest {
     }
 
     @Test
-    void doesNotCreateViolationDirectoryWhenFileLoggingIsDisabled() {
+    void doesNotCreateLogDirectoryWhenFileLoggingIsDisabled() {
         ViolationLogger logger = new ViolationLogger(
                 Logger.getAnonymousLogger(),
                 Clock.fixed(Instant.parse("2026-08-21T16:00:01Z"), SERVER_ZONE)
@@ -92,7 +98,7 @@ class ViolationLoggerTest {
         );
         logger.close();
 
-        assertFalse(Files.exists(tempDir.resolve("violations")));
+        assertFalse(Files.exists(tempDir.resolve("logs")));
     }
 
     @Test

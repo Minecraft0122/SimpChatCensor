@@ -8,6 +8,7 @@ public enum DetectionType {
     GEOIP_COUNTRY("geoip-country"),
     FUZZY_PINYIN("fuzzy-pinyin"),
     FUZZY_LEVENSHTEIN("fuzzy-levenshtein"),
+    EMOJI("emoji"),
     SPAM("spam");
 
     private final String key;

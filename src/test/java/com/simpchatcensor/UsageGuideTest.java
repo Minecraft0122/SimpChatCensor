@@ -34,7 +34,10 @@ class UsageGuideTest {
             assertTrue(guide.contains("content-minimum-interval"));
             assertTrue(guide.contains("similar-message"));
             assertTrue(guide.contains("spam-warning"));
-            assertTrue(guide.contains("violations/YYYY-MM-DD.log"));
+            assertTrue(guide.contains("logs/YYYY-MM-DD.log"));
+            assertTrue(guide.contains("旧版本的 `violations/` 目录"));
+            assertTrue(guide.contains("DetectionType.EMOJI"));
+            assertTrue(guide.contains("你🐎死了"));
             assertTrue(guide.contains("不记录 UUID"));
         }
     }

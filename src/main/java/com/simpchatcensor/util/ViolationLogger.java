@@ -23,7 +23,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public final class ViolationLogger implements AutoCloseable {
-    private static final String LOG_DIRECTORY = "violations";
+    private static final String LOG_DIRECTORY = "logs";
     private static final DateTimeFormatter TIMESTAMP_FORMAT = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
     private static final int FILE_QUEUE_CAPACITY = 4096;
     private static final long CLOSE_TIMEOUT_SECONDS = 10;

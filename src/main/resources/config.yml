@@ -65,7 +65,7 @@ spam-detection:
 # 是否把违规记录通知给拥有 simpchatcensor.notify 权限的管理员。
 notify-staff: true
 
-# 是否写入 plugins/SimpChatCensor/violations/YYYY-MM-DD.log。
+# 是否写入 plugins/SimpChatCensor/logs/YYYY-MM-DD.log。
 # 每天一个文件，记录时间、玩家 ID（游戏名）、检测类型、规则和原始内容，不记录 UUID。
 log-to-file: true
 
@@ -73,7 +73,7 @@ log-to-file: true
 # 可用变量: %player%, %type%, %match%, %rule%, %detail%
 staff-message: "&c[SimpChatCensor] &f%player% &7触发 &e%type%&7: &f%match%"
 
-# 违禁关键词、正则、IP/域名等内容被拦截或警告时，玩家收到的提示。
+# 违禁关键词、正则、IP/域名和 Emoji 等内容被拦截或警告时，玩家收到的提示。
 player-warning: "&c请不要发送违规内容。"
 
 # 刷屏或发言过快被拦截时，玩家收到的独立提示；不会复用 player-warning。

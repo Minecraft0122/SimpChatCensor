@@ -14,16 +14,16 @@
 三个文件的用途如下：
 
 - `config.yml`：处理动作、开关、命令根白名单、提示文本、拼音/编辑距离、IP/域名和 GeoIP 设置。
-- `message-blacklist.yml`：聊天和未列入命令白名单的命令内容所使用的关键词或正则表达式。
+- `message-blacklist.yml`：聊天和未列入命令白名单的命令内容所使用的关键词或正则表达式；Emoji 由内置检测直接拦截，无需加入黑名单。
 - `ip-whitelist.yml`：允许出现在消息或命令中的精确 IP、IPv6 或 IPv4 CIDR。
-- `violations/YYYY-MM-DD.log`：按服务器本地日期分割的违规记录。
+- `logs/YYYY-MM-DD.log`：按服务器本地日期分割的违规记录。
 
 ## 违规记录
 
-开启 `config.yml` 的 `log-to-file: true` 后，插件会在 `plugins/SimpChatCensor/violations/` 下按服务器本地日期写入
+开启 `config.yml` 的 `log-to-file: true` 后，插件会在 `plugins/SimpChatCensor/logs/` 下按服务器本地日期写入
 `YYYY-MM-DD.log`。每行是 5 列制表符分隔内容：时间、玩家 ID（游戏名）、检测类型、规则、原始内容。
 日志只记录玩家游戏名，不记录 UUID；原始内容中的换行、回车和制表符会替换为空格，避免破坏列格式。
-旧版本根目录的 `violations.log` 不会自动迁移，也不会继续追加；需要时可手工归档或删除。
+旧版本的 `violations/` 目录和根目录 `violations.log` 不会自动迁移，也不会继续追加；需要时可手工归档或删除。
 违规记录由后台单线程顺序写入，避免磁盘 I/O 阻塞聊天；插件关闭时会等待队列刷完，极端洪泛导致队列满时会记录一次警告并丢弃超出的记录。
 
 控制台拦截记录使用简洁的三行摘要，格式与 ChatFilter 类似：
@@ -45,6 +45,13 @@ Catch > 玩家名: 原始命令或消息
 
 刷屏检测命中仍然会直接取消当前消息或命令，不会因为顶部 `action` 设置为 `filter` 或 `warn` 而放行；这只改变玩家看到的提示文本。
 旧版配置没有 `spam-warning` 时，插件会使用 `&e消息发送过快，请稍后再试。` 作为 fallback，不会覆盖已有的 `player-warning`。
+
+## Emoji 检测
+
+插件会在关键词/正则、IP/域名、拼音和编辑距离阶段之后直接检查 Emoji。只要消息或命令包含实际 Emoji 字符或完整 Emoji 序列，
+就会使用 `DetectionType.EMOJI` 记录并取消当前内容；它不受顶部 `action: filter` 或 `action: warn` 设置影响。
+例如 `你🐎死了` 会命中 `🐎`。检测会保留完整序列，包括变体选择符、肤色修饰符、双区域指示符旗帜、键帽和 ZWJ 序列，过滤后不会残留连接符。
+普通文本符号（`©`、`™`、箭头和不带 `U+FE0F` 的 `❤`）不会被当作 Emoji；需要显式 Emoji 展示时才会拦截，例如 `❤️`。
 
 ## 聊天刷屏检测
 
