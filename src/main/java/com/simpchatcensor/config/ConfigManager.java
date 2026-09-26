@@ -214,7 +214,12 @@ public final class ConfigManager {
 
         return new PluginConfig.SpamConfig(
                 source.getBoolean("spam-detection.enabled", true),
-                bounded(source.getInt("spam-detection.duplicate-window-seconds", 5), 1, 3600, 5),
+                bounded(
+                        source.getInt("spam-detection.duplicate-window-seconds", PluginConfig.MIN_MESSAGE_HISTORY_SECONDS),
+                        PluginConfig.MIN_MESSAGE_HISTORY_SECONDS,
+                        3600,
+                        PluginConfig.MIN_MESSAGE_HISTORY_SECONDS
+                ),
                 new PluginConfig.RepeatedContentConfig(
                         source.getBoolean("spam-detection.repeated-content.enabled", true),
                         bounded(source.getInt("spam-detection.repeated-content.min-repeats", 4), 2, 100, 4),
@@ -234,7 +239,12 @@ public final class ConfigManager {
                 ),
                 new PluginConfig.SimilarMessageConfig(
                         source.getBoolean("spam-detection.similar-message.enabled", true),
-                        bounded(source.getInt("spam-detection.similar-message.window-seconds", 8), 1, 3600, 8),
+                        bounded(
+                                source.getInt("spam-detection.similar-message.window-seconds", PluginConfig.MIN_MESSAGE_HISTORY_SECONDS),
+                                PluginConfig.MIN_MESSAGE_HISTORY_SECONDS,
+                                3600,
+                                PluginConfig.MIN_MESSAGE_HISTORY_SECONDS
+                        ),
                         bounded(source.getInt("spam-detection.similar-message.minimum-common-prefix-length", 12), 4, 256, 12),
                         bounded(source.getInt("spam-detection.similar-message.maximum-suffix-length", 64), 1, 256, 64)
                 )

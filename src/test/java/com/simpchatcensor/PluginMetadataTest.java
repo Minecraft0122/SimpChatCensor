@@ -39,6 +39,8 @@ class PluginMetadataTest {
         assertEquals(1, config.getInt("spam-detection.repeated-content.min-segment-length"));
         assertEquals(200, config.getInt("content-minimum-interval.message-millis"));
         assertEquals(250, config.getInt("content-minimum-interval.command-millis"));
+        assertEquals(PluginConfig.MIN_MESSAGE_HISTORY_SECONDS, config.getInt("spam-detection.duplicate-window-seconds"));
+        assertEquals(PluginConfig.MIN_MESSAGE_HISTORY_SECONDS, config.getInt("spam-detection.similar-message.window-seconds"));
         assertEquals(12, config.getInt("spam-detection.similar-message.minimum-common-prefix-length"));
         assertEquals(64, config.getInt("spam-detection.similar-message.maximum-suffix-length"));
         assertEquals("&e消息发送过快，请稍后再试。", config.getString("spam-warning"));

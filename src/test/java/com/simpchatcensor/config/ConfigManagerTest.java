@@ -120,4 +120,48 @@ class ConfigManagerTest {
         assertEquals(12, spam.similarMessage().minimumCommonPrefixLength());
         assertEquals(256, spam.similarMessage().maximumSuffixLength());
     }
+
+    @Test
+    void defaultsBothMessageHistoryWindowsToFifteenSeconds() {
+        PluginConfig.SpamConfig spam = ConfigManager.loadSpamConfig(new YamlConfiguration());
+
+        assertEquals(15, spam.duplicateWindowSeconds());
+        assertEquals(15, spam.similarMessage().windowSeconds());
+    }
+
+    @Test
+    void raisesLegacyHistoryWindowsWithoutRewritingTheSourceConfig() {
+        YamlConfiguration source = new YamlConfiguration();
+        source.set("spam-detection.duplicate-window-seconds", 5);
+        source.set("spam-detection.similar-message.window-seconds", 8);
+
+        PluginConfig.SpamConfig spam = ConfigManager.loadSpamConfig(source);
+
+        assertEquals(15, spam.duplicateWindowSeconds());
+        assertEquals(15, spam.similarMessage().windowSeconds());
+        assertEquals(5, source.getInt("spam-detection.duplicate-window-seconds"));
+        assertEquals(8, source.getInt("spam-detection.similar-message.window-seconds"));
+    }
+
+    @Test
+    void boundsMessageHistoryWindowsAndPreservesIndependentValidValues() {
+        YamlConfiguration source = new YamlConfiguration();
+        source.set("spam-detection.duplicate-window-seconds", -1);
+        source.set("spam-detection.similar-message.window-seconds", 0);
+        PluginConfig.SpamConfig invalid = ConfigManager.loadSpamConfig(source);
+        assertEquals(15, invalid.duplicateWindowSeconds());
+        assertEquals(15, invalid.similarMessage().windowSeconds());
+
+        source.set("spam-detection.duplicate-window-seconds", 10_000);
+        source.set("spam-detection.similar-message.window-seconds", 10_000);
+        PluginConfig.SpamConfig maximum = ConfigManager.loadSpamConfig(source);
+        assertEquals(3600, maximum.duplicateWindowSeconds());
+        assertEquals(3600, maximum.similarMessage().windowSeconds());
+
+        source.set("spam-detection.duplicate-window-seconds", 30);
+        source.set("spam-detection.similar-message.window-seconds", 60);
+        PluginConfig.SpamConfig independent = ConfigManager.loadSpamConfig(source);
+        assertEquals(30, independent.duplicateWindowSeconds());
+        assertEquals(60, independent.similarMessage().windowSeconds());
+    }
 }

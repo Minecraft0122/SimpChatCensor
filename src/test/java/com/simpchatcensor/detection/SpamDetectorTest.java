@@ -29,10 +29,38 @@ class SpamDetectorTest {
         assertTrue(detector.detect(PLAYER, "Hello", 1_000).isEmpty());
         assertTrue(detector.detect(PLAYER, "hello", 1_001).isEmpty());
         assertTrue(detector.detect(PLAYER, " Hello", 1_002).isEmpty());
-        assertTrue(detector.detect(PLAYER, "Hello", 6_001).isEmpty());
+        assertTrue(detector.detect(PLAYER, "Hello", 16_001).isEmpty());
         detector.clear(PLAYER);
         assertTrue(detector.detect(PLAYER, "Hello", 1_000).isEmpty());
-        assertTrue(detector.detect(PLAYER, "Hello", 6_001).isEmpty());
+        assertTrue(detector.detect(PLAYER, "Hello", 16_001).isEmpty());
+    }
+
+    @Test
+    void historyChecksIncludeAcceptedMessagesWithLaterTimestamps() {
+        SpamDetector detector = detector(new PluginConfig.SpamConfig(
+                true,
+                15,
+                new PluginConfig.RepeatedContentConfig(false, 4, 2, 16, 12),
+                new PluginConfig.LongMessageConfig(false, 300, 3, 10),
+                new PluginConfig.MinimumIntervalConfig(0, 0),
+                new PluginConfig.SimilarMessageConfig(true, 15, 8, 12)
+        ));
+
+        assertTrue(detector.detect(PLAYER, "加入服务器领取奖励-A1B2", 2_000).isEmpty());
+        // Async events can acquire the player lock in a different order from
+        // their timestamps; an already accepted message must remain visible.
+        assertTrue(detector.detect(PLAYER, "1", 1_999).isEmpty());
+        DetectionResult duplicate = detector.detect(PLAYER, "加入服务器领取奖励-A1B2", 1_999).orElseThrow();
+        assertEquals(DetectionType.SPAM, duplicate.type());
+        assertEquals(DetectionAction.CANCEL, duplicate.action());
+        assertEquals("加入服务器领取奖励-A1B2", duplicate.detectedText());
+        assertEquals("duplicate message within 15s", duplicate.rule());
+        DetectionResult similar = detector.detect(PLAYER, "加入服务器领取奖励-X9Y8", 1_999).orElseThrow();
+        assertEquals(DetectionType.SPAM, similar.type());
+        assertEquals(DetectionAction.CANCEL, similar.action());
+        assertEquals("加入服务器领取奖励-X9Y8", similar.detectedText());
+        assertEquals("similar-message", similar.rule());
+        assertTrue(detector.detect(PLAYER, "加入服务器领取奖励-A1B2", 17_001).isEmpty());
     }
 
     @Test

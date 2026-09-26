@@ -29,6 +29,7 @@ public record PluginConfig(
         Path dataFolder,
         SpamConfig spam
 ) {
+    public static final int MIN_MESSAGE_HISTORY_SECONDS = 15;
     public static final List<String> DEFAULT_COMMAND_WHITELIST = List.of("scc", "lp", "luckperms");
     /**
      * IANA root-zone suffixes bundled with the plugin. The list is loaded once

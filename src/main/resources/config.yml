@@ -38,14 +38,19 @@ content-minimum-interval:
   command-millis: 250
 
 # 聊天刷屏检测。刷屏违规始终取消当前消息，不受顶部 action 的 filter/warn 设置影响。
+# 按玩家缓存窗口内所有放行的聊天，与每条历史消息比较，插入数字或其它消息不能清掉历史。
+# 两个消息窗口范围均为 15 到 3600 秒，旧配置低于 15 秒时运行时按 15 秒处理，不改写文件。
+# 每名玩家最多保存 256 条、合计 131072 个字符（原文和规范化副本累计）；
+# 有效历史达到任一容量上限时拦截新消息，待旧记录过期后恢复，不会挤掉有效记录。
 spam-detection:
   enabled: true
-  # 同一玩家在此时间内重复发送完全相同的上一条消息会被拦截。
-  duplicate-window-seconds: 5
+  # 与此时间内任意一条已放行聊天完全相同的消息会被拦截。
+  duplicate-window-seconds: 15
   similar-message:
     enabled: true
-    # 最近两条消息在此窗口内共享足够长的前缀、但只改变短尾部时拦截，专门防止随机后缀绕过。
-    window-seconds: 8
+    # 与此窗口内任意历史消息比较：忽略大小写和首尾空白后，共享足够长前缀且尾部足够短时拦截。
+    # 规范化后完全一致且达到 minimum-common-prefix-length 也会拦截，超过 4096 个 Java 字符不做相似比较。
+    window-seconds: 15
     minimum-common-prefix-length: 12
     maximum-suffix-length: 64
   repeated-content:
