@@ -34,6 +34,11 @@ mvn -B -ntp clean verify
 
 完整的开发、测试、版本号和发布要求见 [AGENTS.md](AGENTS.md)。
 
+## 许可证
+
+本项目采用 GNU 通用公共许可证第三版（GPL-3.0-only）授权，详见 [LICENSE](LICENSE)。
+项目依赖的第三方库保留其各自许可证；重新分发时请同时遵守这些依赖的授权条款。
+
 ## 命令
 
 ```text

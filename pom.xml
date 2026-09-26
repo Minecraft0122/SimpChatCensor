@@ -10,6 +10,14 @@
 
     <name>SimpChatCensor</name>
     <description>Realtime chat and command censor for Paper/Folia servers.</description>
+    <url>https://github.com/NovaThaum/SimpChatCensor</url>
+    <licenses>
+        <license>
+            <name>GNU General Public License v3.0</name>
+            <url>https://www.gnu.org/licenses/gpl-3.0.html</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
 
     <properties>
         <java.version>21</java.version>
