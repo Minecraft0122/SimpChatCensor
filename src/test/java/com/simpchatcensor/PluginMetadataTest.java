@@ -47,9 +47,11 @@ class PluginMetadataTest {
         assertEquals("&e消息发送过快，请稍后再试。", config.getString("spam-warning"));
 
         YamlConfiguration blacklist = loadYamlResource("message-blacklist.yml");
-        assertEquals(2, blacklist.getInt("library-version"));
+        assertEquals(3, blacklist.getInt("library-version"));
         assertEquals(true, blacklist.getStringList("banned-words").contains("神经病"));
-        assertTrue(blacklist.getStringList("banned-words").containsAll(java.util.List.of("™", "si冯", "网警卫")));
+        assertTrue(blacklist.getStringList("banned-words").containsAll(java.util.List.of(
+                "™", "si冯", "网警卫", "嘛的", "麻的", "马的", "外挂出售", "低价代充"
+        )));
         assertFalse(blacklist.getStringList("banned-words").contains("开挂"));
     }
 

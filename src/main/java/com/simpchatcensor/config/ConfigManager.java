@@ -19,7 +19,7 @@ public final class ConfigManager {
     private static final String BANNED_WORDS_PATH = "banned-words";
     private static final String IP_WHITELIST_PATH = "ip-whitelist";
     private static final String BANNED_WORD_LIBRARY_VERSION_PATH = "library-version";
-    private static final int BUNDLED_BANNED_WORD_LIBRARY_VERSION = 2;
+    private static final int BUNDLED_BANNED_WORD_LIBRARY_VERSION = 3;
     private static final List<String> LEGACY_BUNDLED_BANNED_WORDS = List.of("fuck", "混蛋");
 
     private final JavaPlugin plugin;

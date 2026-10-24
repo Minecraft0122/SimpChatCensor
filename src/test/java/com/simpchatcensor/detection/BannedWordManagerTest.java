@@ -85,6 +85,22 @@ class BannedWordManagerTest {
     }
 
     @Test
+    void detectsBundledHomophoneVariantWithoutDependingOnPinyinDetection() {
+        BannedWordManager manager = new BannedWordManager(Logger.getAnonymousLogger());
+        manager.reload(config(
+                true,
+                false,
+                false,
+                List.of("嘛的"),
+                tempDir
+        ));
+
+        DetectionResult result = manager.scan("你嘛的").orElseThrow();
+        assertEquals(DetectionType.LITERAL, result.type());
+        assertEquals("嘛的", result.rule());
+    }
+
+    @Test
     void detectsRegexInRawMessageWithoutMatchingAContainingWord() {
         BannedWordManager manager = new BannedWordManager(Logger.getAnonymousLogger());
         manager.reload(config(
