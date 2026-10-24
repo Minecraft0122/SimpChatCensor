@@ -11,6 +11,8 @@ class TextPreprocessorTest {
         assertEquals("fuck", TextPreprocessor.advanced("f u c k"));
         assertEquals("ass", TextPreprocessor.advanced("@ $ $"));
         assertEquals("angel", TextPreprocessor.advanced("Áng3l"));
+        assertEquals("网警卫", TextPreprocessor.advanced("网-警。卫"));
+        assertEquals("网----警卫", TextPreprocessor.advanced("网----警-卫"));
     }
 
     @Test

@@ -33,6 +33,23 @@ class BannedWordManagerTest {
     }
 
     @Test
+    void detectsNewBundledEvasionExamplesAndKeepsRuleText() {
+        BannedWordManager manager = new BannedWordManager(Logger.getAnonymousLogger());
+        manager.reload(config(
+                true,
+                false,
+                false,
+                List.of("™", "si冯", "网警卫"),
+                tempDir
+        ));
+
+        for (String message : List.of("™", "si冯", "网-警。卫")) {
+            DetectionResult result = manager.scan(message).orElseThrow();
+            assertEquals(DetectionType.LITERAL, result.type());
+        }
+    }
+
+    @Test
     void detectsPinyinHomophonesWhenEnabled() {
         BannedWordManager manager = new BannedWordManager(Logger.getAnonymousLogger());
         manager.reload(config(

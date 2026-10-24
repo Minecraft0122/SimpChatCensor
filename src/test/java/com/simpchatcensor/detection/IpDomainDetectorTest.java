@@ -54,6 +54,17 @@ class IpDomainDetectorTest {
     }
 
     @Test
+    void detectsDomainWithCharactersSeparatedByShortSpaces() {
+        IpDomainDetector detector = detector(List.of(), List.of());
+
+        DetectionResult result = detector.detectInMessage("mc 2 4 4 . c o m").orElseThrow();
+        assertEquals(DetectionType.DOMAIN, result.type());
+        assertEquals("mc 2 4 4 . c o m", result.detectedText());
+        assertEquals("mc244.com", result.rule());
+        assertEquals(DetectionType.DOMAIN, detector.detectInMessage("visit this.com later").orElseThrow().type());
+    }
+
+    @Test
     void ignoresDomainWithUnconfiguredSuffix() {
         IpDomainDetector detector = detector(
                 List.of(),

@@ -28,6 +28,7 @@ public final class IpDomainDetector {
     private static final String DOMAIN_SEPARATOR = "\\h{0,8}(?:[" + DOMAIN_SEPARATOR_CHARS
             + "]|\\[\\h*[.．]\\])\\h{0,8}";
     private static final String DOMAIN_LABEL = "[\\p{L}\\p{N}](?:[\\p{L}\\p{N}-]{0,61}[\\p{L}\\p{N}])?";
+    private static final String SPACED_DOMAIN_LABEL = "[\\p{L}\\p{N}](?:\\h{0,1}[\\p{L}\\p{N}-]){0,61}";
     private static final Pattern IPV4_PATTERN = Pattern.compile(
             "(" + IPV4_OCTET + "(?:" + IPV4_SEPARATOR + IPV4_OCTET + "){3})"
     );
@@ -42,6 +43,11 @@ public final class IpDomainDetector {
     private static final Pattern COMMA_DOMAIN_PATTERN = Pattern.compile(
             "(?i)(?<![\\p{L}\\p{N}])((?:" + DOMAIN_LABEL + "[" + DOMAIN_COMMA_CHARS + "]){1," + MAX_DOMAIN_LABELS + "}"
                     + DOMAIN_LABEL + "(?::[0-9]{1,5})?(?:/\\S*)?"
+                    + ")(?![\\p{L}\\p{N}])"
+    );
+    private static final Pattern SPACED_DOMAIN_PATTERN = Pattern.compile(
+            "(?i)(?<![\\p{L}\\p{N}])((?:" + SPACED_DOMAIN_LABEL + DOMAIN_SEPARATOR + "){1," + MAX_DOMAIN_LABELS + "}"
+                    + SPACED_DOMAIN_LABEL + "(?::[0-9]{1,5})?(?:/\\S*)?"
                     + ")(?![\\p{L}\\p{N}])"
     );
 
@@ -111,7 +117,11 @@ public final class IpDomainDetector {
             if (normalDomain.isPresent()) {
                 return normalDomain;
             }
-            return detectDomains(message, COMMA_DOMAIN_PATTERN, action);
+            Optional<DetectionResult> commaDomain = detectDomains(message, COMMA_DOMAIN_PATTERN, action);
+            if (commaDomain.isPresent()) {
+                return commaDomain;
+            }
+            return detectDomains(message, SPACED_DOMAIN_PATTERN, action);
         }
 
         return Optional.empty();
@@ -260,6 +270,9 @@ public final class IpDomainDetector {
         Matcher matcher = pattern.matcher(message);
         while (matcher.find()) {
             String domain = trimTrailingPunctuation(matcher.group(1));
+            if (countHorizontalWhitespace(domain) > 0 && countHorizontalWhitespace(domain) < 2) {
+                continue;
+            }
             if (hasEmbeddedWordPunctuation(message, matcher.start(1), matcher.end(1))) {
                 continue;
             }
@@ -373,9 +386,19 @@ public final class IpDomainDetector {
             authorityEnd = candidate.length();
         }
 
-        String authority = candidate.substring(0, authorityEnd);
+        String authority = candidate.substring(0, authorityEnd).replaceAll("\\h", "");
         String path = candidate.substring(authorityEnd);
         return DomainNormalizer.normalizeSeparators(authority) + path;
+    }
+
+    private static int countHorizontalWhitespace(String value) {
+        int count = 0;
+        for (int i = 0; i < value.length(); i++) {
+            if (DomainNormalizer.isHorizontalWhitespace(value.charAt(i))) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private static String normalizeDomainSuffix(String suffix) {

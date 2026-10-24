@@ -25,14 +25,52 @@ public final class TextPreprocessor {
         normalized = COMBINING_MARKS.matcher(normalized).replaceAll("");
 
         StringBuilder builder = new StringBuilder(normalized.length());
-        for (int i = 0; i < normalized.length(); i++) {
-            char c = Character.toLowerCase(normalized.charAt(i));
-            if (Character.isWhitespace(c)) {
+        for (int offset = 0; offset < normalized.length(); ) {
+            int codePoint = normalized.codePointAt(offset);
+            offset += Character.charCount(codePoint);
+            if (Character.isWhitespace(codePoint)) {
                 continue;
             }
-            builder.append(restoreLeet(c));
+
+            if (isSeparator(codePoint) && hasWordBefore(builder)) {
+                int nextOffset = offset;
+                int separators = 1;
+                while (nextOffset < normalized.length()) {
+                    int next = normalized.codePointAt(nextOffset);
+                    if (!isSeparator(next) || separators >= 3) {
+                        break;
+                    }
+                    separators++;
+                    nextOffset += Character.charCount(next);
+                }
+                if (nextOffset < normalized.length() && Character.isLetterOrDigit(normalized.codePointAt(nextOffset))) {
+                    offset = nextOffset;
+                    continue;
+                }
+            }
+
+            builder.appendCodePoint(restoreLeet(codePoint));
         }
         return builder.toString().toLowerCase(Locale.ROOT);
+    }
+
+    private static boolean hasWordBefore(StringBuilder builder) {
+        return !builder.isEmpty() && Character.isLetterOrDigit(builder.codePointBefore(builder.length()));
+    }
+
+    private static boolean isSeparator(int codePoint) {
+        int type = Character.getType(codePoint);
+        return type == Character.CONNECTOR_PUNCTUATION
+                || type == Character.DASH_PUNCTUATION
+                || type == Character.START_PUNCTUATION
+                || type == Character.END_PUNCTUATION
+                || type == Character.INITIAL_QUOTE_PUNCTUATION
+                || type == Character.FINAL_QUOTE_PUNCTUATION
+                || type == Character.OTHER_PUNCTUATION
+                || type == Character.MATH_SYMBOL
+                || type == Character.CURRENCY_SYMBOL
+                || type == Character.MODIFIER_SYMBOL
+                || type == Character.OTHER_SYMBOL;
     }
 
     public static List<String> tokens(String input, boolean advanced) {
@@ -124,7 +162,7 @@ public final class TextPreprocessor {
                 || (c >= '0' && c <= '9');
     }
 
-    private static char restoreLeet(char c) {
+    private static int restoreLeet(int c) {
         return switch (c) {
             case '4', '@' -> 'a';
             case '3' -> 'e';
